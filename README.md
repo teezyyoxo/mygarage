@@ -1,3 +1,31 @@
+# MyGarage for CarChief Command
+
+> [!IMPORTANT]
+> This fork is the MyGarage maintenance-history companion for
+> **[CarChief Command](https://github.com/teezyyoxo/carchief-command)**, the
+> BMW-specific command center. **CarChief Command is the primary integration
+> target and reason this fork exists.**
+
+Through **[Vehicle Hub](https://github.com/teezyyoxo/vehicle-hub)**, this fork
+adds reviewed, bidirectional maintenance-history transfers between MyGarage
+and CarChief Command without removing MyGarage features or turning Command
+into a general multi-vehicle application. Transfers are deliberately limited
+to maintenance service visits; photos, attachments, documents, fuel records,
+telemetry, location, reminders, and vehicle-profile data do not sync.
+
+This work is based on the original
+**[MyGarage project by HomelabForge](https://github.com/homelabforge/mygarage)**
+and remains available under its MIT License. The integration fork is
+independent and is not endorsed by HomelabForge or CarChief.
+
+**Primary projects:**
+
+- **CarChief Command:** <https://github.com/teezyyoxo/carchief-command>
+- **Vehicle Hub:** <https://github.com/teezyyoxo/vehicle-hub>
+- **Original MyGarage:** <https://github.com/homelabforge/mygarage>
+
+---
+
 <div align="center">
   
 Self-hosted vehicle maintenance tracking with VIN decoding, service records, fuel logging, and document management.
