@@ -95,6 +95,22 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:////data/mygarage.db"
 
+    # Vehicle Hub reviewed synchronization. The shared token stays in a mounted
+    # file and every private integration request is scoped to one exact VIN.
+    vehicle_hub_sync_token_file: Path | None = None
+    vehicle_hub_vehicle_vin: str = ""
+    vehicle_hub_url: str = ""
+    vehicle_hub_timeout_seconds: float = 15.0
+
+    @property
+    def vehicle_hub_sync_token(self) -> str:
+        if not self.vehicle_hub_sync_token_file:
+            return ""
+        try:
+            return self.vehicle_hub_sync_token_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+
     # File Storage
     data_dir: Path = Path("/data")
     attachments_dir: Path = Path("/data/attachments")

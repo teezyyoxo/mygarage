@@ -11604,6 +11604,51 @@
             "description": "Engine-hours reading at this service visit (hour-metered vehicles). Dimensionless \u2014 no unit conversion. Auto-syncs to hours history.",
             "title": "Engine Hours"
           },
+          "external_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Fingerprint"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "external_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Source"
+          },
+          "external_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Updated At"
+          },
           "has_failed_inspections": {
             "description": "Whether any inspections failed",
             "title": "Has Failed Inspections",

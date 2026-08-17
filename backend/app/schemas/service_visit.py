@@ -346,6 +346,10 @@ class ServiceVisitResponse(ServiceVisitBase):
     has_failed_inspections: bool = Field(description="Whether any inspections failed")
     created_at: datetime
     updated_at: datetime | None = None
+    external_source: str | None = None
+    external_id: str | None = None
+    external_updated_at: datetime | None = None
+    external_fingerprint: str | None = None
     line_items: list[ServiceLineItemResponse] = []
     vendor: VendorSummary | None = None
 

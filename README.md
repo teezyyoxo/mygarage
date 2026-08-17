@@ -46,6 +46,51 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 
 ---
 
+## Vehicle Hub and CarChief Command integration
+
+Current Vehicle Hub fork version: **3.1.0**
+
+This Vehicle Hub-maintained fork adds an optional, reviewed connection between
+MyGarage service history and the BMW-specific
+[CarChief Command](https://github.com/teezyyoxo/carchief-command) application.
+MyGarage remains the multi-vehicle ownership platform; Command remains unique
+to the single configured BMW.
+
+The integration synchronizes **only maintenance service visits**. Supported
+fields are the service date, mileage recorded for that service, category/type,
+description/sub-type, notes, provider and invoice context, and cost. The
+service mileage is part of the historical visit and does not synchronize a
+standalone current-odometer record.
+
+It does **not** synchronize vehicle photos, service attachments, documents,
+fuel/DEF/propane records, reminders, telemetry, trips, locations, DTCs,
+standalone odometer observations, vehicle profile/specification data, or any
+other MyGarage vehicle. Nothing is written upstream to CarChief, and deletes
+are never propagated.
+
+Use **Send to Command** on one visit or the service-history list to open a
+zero-write preview. Every actionable record requires an explicit decision.
+Possible duplicates offer Merge, Replace, Keep Both, Link Without Changes,
+Ignore Once, and Never Sync rather than being overwritten automatically.
+Records imported from Command show `Imported from Command`, remain read-only
+in MyGarage, and must be changed in their owning application before being
+transferred again.
+
+Vehicle Hub's root Compose configuration supplies the private adapter URL,
+exact VIN, and file-mounted shared token through these MyGarage settings:
+
+```dotenv
+MYGARAGE_VEHICLE_HUB_URL=http://vehicle-hub-sync:8788
+MYGARAGE_VEHICLE_HUB_VEHICLE_VIN=YOUR_17_CHARACTER_VIN
+MYGARAGE_VEHICLE_HUB_SYNC_TOKEN_FILE=/run/secrets/vehicle_hub_sync_token
+MYGARAGE_VEHICLE_HUB_TIMEOUT_SECONDS=15
+```
+
+The browser never receives the shared token. If the integration settings are
+absent, MyGarage continues to operate independently.
+
+---
+
 ## Support
 
 - **📚 Documentation**: [GitHub Wiki](https://github.com/homelabforge/mygarage/wiki)

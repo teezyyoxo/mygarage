@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Store,
   FileText,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ServiceVisit, ServiceLineItem } from '../types/serviceVisit'
@@ -33,6 +34,8 @@ import { getUsageTracking } from '../utils/usageTracking'
 import { useServiceVisits, useDeleteServiceVisit } from '../hooks/queries/useServiceVisits'
 import { Button, Card, IconButton, Chip, Mono, SearchField, EmptyState } from './ui'
 import type { Tone } from './ui'
+import VehicleHubReviewModal from './VehicleHubReviewModal'
+import type { HubDecision, HubReview } from './VehicleHubReviewModal'
 
 /**
  * Backend inspection result -> translation key.
@@ -82,6 +85,8 @@ export default function ServiceVisitList({
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedVisits, setExpandedVisits] = useState<Set<number>>(new Set())
   const [visitAttachments, setVisitAttachments] = useState<Record<number, Attachment[]>>({})
+  const [hubReview, setHubReview] = useState<HubReview | null>(null)
+  const [hubLoading, setHubLoading] = useState(false)
   const { system, showBoth } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
   // Task 14 — which usage dimension(s) this vehicle tracks, driving the
@@ -99,6 +104,14 @@ export default function ServiceVisitList({
   const deleteMutation = useDeleteServiceVisit(vin)
 
   const visits = useMemo(() => data?.visits ?? [], [data?.visits])
+
+  useEffect(() => {
+    if (!visits.length || typeof window === 'undefined') return
+    const visitId = Number(new URLSearchParams(window.location.search).get('visit'))
+    if (!Number.isInteger(visitId) || !visits.some((visit) => visit.id === visitId)) return
+    setExpandedVisits((current) => new Set(current).add(visitId))
+    window.setTimeout(() => document.getElementById(`service-visit-${visitId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+  }, [visits])
 
   // Fetch vehicle data to determine tracked usage dimension(s).
   useEffect(() => {
@@ -163,6 +176,45 @@ export default function ServiceVisitList({
         })
       },
     })
+  }
+
+  const startHubReview = async (visitId?: number) => {
+    setHubLoading(true)
+    try {
+      const { data: review } = await api.post<HubReview>('/vehicle-hub/reconcile', {
+        vehicleVin: vin,
+        ...(visitId ? { sourceIds: [`service-visit:${visitId}`] } : {}),
+      })
+      setHubReview(review)
+    } catch (error) {
+      toast.error(t('serviceList.vehicleHub.previewFailed'), {
+        description: getActionErrorMessage(error, t('serviceList.vehicleHub.previewAction')),
+      })
+    } finally {
+      setHubLoading(false)
+    }
+  }
+
+  const applyHubReview = async (decisions: HubDecision[]) => {
+    if (!hubReview) return
+    setHubLoading(true)
+    try {
+      const { data: result } = await api.post('/vehicle-hub/apply', {
+        vehicleVin: vin,
+        reviewId: hubReview.reviewId,
+        decisions,
+      })
+      const applied = Array.isArray(result?.applied) ? result.applied : []
+      const writes = applied.filter((item: { wrote?: boolean }) => item.wrote).length
+      setHubReview(null)
+      toast.success(t('serviceList.vehicleHub.sent', { count: writes }))
+    } catch (error) {
+      toast.error(t('serviceList.vehicleHub.transferFailed'), {
+        description: getActionErrorMessage(error, t('serviceList.vehicleHub.transferAction')),
+      })
+    } finally {
+      setHubLoading(false)
+    }
   }
 
   const toggleExpanded = (visitId: number) => {
@@ -292,6 +344,9 @@ export default function ServiceVisitList({
             />
           )}
           <Button variant="primary" icon={Plus} onClick={onAddClick}>{t('serviceList.logVisit')}</Button>
+          <Button variant="secondary" icon={ArrowRightLeft} disabled={hubLoading || visits.length === 0} onClick={() => void startHubReview()}>
+            {hubLoading ? t('serviceList.vehicleHub.preparing') : t('serviceList.vehicleHub.sendToCommand')}
+          </Button>
         </div>
       </div>
 
@@ -317,6 +372,7 @@ export default function ServiceVisitList({
         <div className="space-y-3">
           {filteredVisits.map((visit) => {
             const isExpanded = expandedVisits.has(visit.id)
+            const importedFromCommand = visit.external_source === 'command'
             const totalCost = calculateVisitTotal(visit)
             const lineItemCount = visit.line_items?.length || 0
             const hasFailedInspections = visit.line_items?.some(
@@ -329,6 +385,7 @@ export default function ServiceVisitList({
             return (
               <div
                 key={visit.id}
+                id={`service-visit-${visit.id}`}
                 className={`overflow-hidden rounded-card border bg-surface transition-colors ${
                   hasFailedInspections ? 'border-warning' : 'border-border'
                 }`}
@@ -353,6 +410,7 @@ export default function ServiceVisitList({
                     {visit.service_category && (
                       <Chip tone={getServiceCategoryTone(visit.service_category)}>{visit.service_category}</Chip>
                     )}
+                    {importedFromCommand && <Chip tone="info">{t('serviceList.vehicleHub.importedFromCommand')}</Chip>}
 
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-text truncate">
@@ -397,15 +455,9 @@ export default function ServiceVisitList({
                       inside it — so the header stays a single keyboard-operable control
                       with no button-in-button, and no stopPropagation is needed. */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <IconButton icon={Edit} label={t('common:edit')} variant="ghost" size="sm" onClick={() => onEditClick(visit)} />
-                    <IconButton
-                      icon={Trash2}
-                      label={t('common:delete')}
-                      variant="danger"
-                      size="sm"
-                      disabled={deleteMutation.isPending && deleteMutation.variables === visit.id}
-                      onClick={() => handleDelete(visit.id)}
-                    />
+                    {!importedFromCommand && <IconButton icon={ArrowRightLeft} label={t('serviceList.vehicleHub.sendThisToCommand')} variant="ghost" size="sm" disabled={hubLoading} onClick={() => void startHubReview(visit.id)} />}
+                    {!importedFromCommand && <IconButton icon={Edit} label={t('common:edit')} variant="ghost" size="sm" onClick={() => onEditClick(visit)} />}
+                    {!importedFromCommand && <IconButton icon={Trash2} label={t('common:delete')} variant="danger" size="sm" disabled={deleteMutation.isPending && deleteMutation.variables === visit.id} onClick={() => handleDelete(visit.id)} />}
                   </div>
                 </div>
 
@@ -512,6 +564,7 @@ export default function ServiceVisitList({
           })}
         </div>
       )}
+      {hubReview && <VehicleHubReviewModal review={hubReview} applying={hubLoading} onClose={() => setHubReview(null)} onApply={(decisions) => void applyHubReview(decisions)} />}
     </div>
   )
 }

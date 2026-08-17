@@ -328,6 +328,8 @@ from app.routes import (
     toll_transactions_router,
     vehicle_supplies_router,
     vehicles_router,
+    vehicle_hub_router,
+    vehicle_hub_ui_router,
     vendors_router,
     vin_router,
     warranty_router,
@@ -383,6 +385,8 @@ app.include_router(poi_router)  # New POI router
 app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
 app.include_router(vendors_router)
 app.include_router(service_visits_router)
+app.include_router(vehicle_hub_router)
+app.include_router(vehicle_hub_ui_router)
 app.include_router(reminders_router)
 app.include_router(supplies_router)
 app.include_router(vehicle_supplies_router)

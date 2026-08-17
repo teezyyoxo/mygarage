@@ -11204,6 +11204,17 @@ export interface components {
              * @description Engine-hours reading at this service visit (hour-metered vehicles). Dimensionless — no unit conversion. Auto-syncs to hours history.
              */
             engine_hours?: string | null;
+            /** External Fingerprint */
+            external_fingerprint?: string | null;
+            /** External Id */
+            external_id?: string | null;
+            /** External Source */
+            external_source?: string | null;
+            /**
+             * External Updated At
+             * Format: date-time
+             */
+            external_updated_at?: string | null;
             /**
              * Has Failed Inspections
              * @description Whether any inspections failed

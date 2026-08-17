@@ -5,7 +5,23 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.1.0] - 2026-08-17
+
+### Added
+- Optional Vehicle Hub integration for reviewed, bidirectional service-history transfers between the single configured MyGarage vehicle and CarChief Command.
+- **Send to Command** actions for one service visit or the full service-history list, with a zero-write preview before anything is applied.
+- Explicit duplicate decisions for Create, Update Linked, Merge, Replace, Keep Both, Link Without Changes, Ignore Once, and Never Sync; possible matches are never resolved automatically.
+- Source identity, update timestamp, and fingerprint metadata for imported service visits through additive migration 085, making repeated transfers idempotent.
+- `Imported from Command` provenance labels, read-only treatment for Command-owned mirrors, and exact service-visit deep links from Command back into MyGarage.
+- Private, bearer-authenticated, VIN-scoped integration endpoints plus an authenticated MyGarage UI proxy; the shared token is never sent to the browser.
+
+### Changed
+- Service visits imported from Command must be edited or deleted in Command and transferred again; ordinary MyGarage-owned service visits retain their existing edit and delete behavior.
+- Vehicle Hub transfers are deliberately limited to service-history fields: service date, mileage at service, category/type, description/sub-type, notes, provider/invoice context, and cost.
+
+### Security
+- No photos, attachments, documents, fuel/DEF/propane records, reminders, telemetry, trips, locations, DTCs, standalone odometer observations, vehicle profile data, or records for any other VIN are exposed to or synchronized by this integration.
+- Delete propagation and continuous automatic synchronization remain disabled. Every actionable transfer requires a fresh, one-use review and explicit decisions before a target write occurs.
 
 ## [3.0.1] - 2026-08-15
 
@@ -2506,5 +2522,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **v1.x:** Initial development phases (7 major phases + 12 feature phases)
 
 ---
-
-

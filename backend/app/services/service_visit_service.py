@@ -350,6 +350,11 @@ class ServiceVisitService:
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
             visit = await self.get_service_visit(vin, visit_id, current_user)
+            if visit.external_source:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Imported service visits are read-only; edit them in the source application",
+                )
 
             update_data = visit_data.model_dump(exclude_unset=True)
 
@@ -564,6 +569,11 @@ class ServiceVisitService:
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
             visit = await self.get_service_visit(vin, visit_id, current_user)
+            if visit.external_source:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Imported service visits are read-only; delete them in the source application",
+                )
 
             # Phase 4b: delete the auto-synced odometer row(s) for this visit
             # -- ONLY rows that still carry THIS visit's AUTO-SYNC marker.
@@ -925,6 +935,10 @@ class ServiceVisitService:
             has_failed_inspections=visit.has_failed_inspections,
             created_at=visit.created_at,
             updated_at=visit.updated_at,
+            external_source=visit.external_source,
+            external_id=visit.external_id,
+            external_updated_at=visit.external_updated_at,
+            external_fingerprint=visit.external_fingerprint,
             line_items=line_item_responses,
             vendor=vendor_summary,
         )

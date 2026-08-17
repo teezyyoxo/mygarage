@@ -34,6 +34,8 @@ from app.routes.vendors import router as vendors_router
 from app.routes.vin import router as vin_router
 from app.routes.warranty import router as warranty_router
 from app.routes.window_sticker import router as window_sticker_router
+from app.routes.vehicle_hub import router as vehicle_hub_router
+from app.routes.vehicle_hub_ui import router as vehicle_hub_ui_router
 
 __all__ = [
     "vin_router",
@@ -71,4 +73,6 @@ __all__ = [
     "service_visits_router",
     "supplies_router",
     "vehicle_supplies_router",
+    "vehicle_hub_router",
+    "vehicle_hub_ui_router",
 ]
