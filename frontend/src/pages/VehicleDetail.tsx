@@ -309,7 +309,7 @@ export default function VehicleDetail() {
     fileInputRef.current?.click()
   }
 
-  const handleImportJSON = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file || !vin) return
     if (!isOnline) {
@@ -322,7 +322,8 @@ export default function VehicleDetail() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await api.post(`/import/vehicles/${vin}/json`, formData, {
+      const isPdf = file.name.toLowerCase().endsWith('.pdf')
+      const response = await api.post(`/import/vehicles/${vin}/${isPdf ? 'pdf' : 'json'}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -629,7 +630,7 @@ export default function VehicleDetail() {
         <VehicleHero vehicle={vehicle} photoUrl={photoUrl} fromCache={fromCache} detailStats={detailStats} />
 
         {/* Hidden file input for import */}
-        <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
+        <input ref={fileInputRef} type="file" accept=".json,.pdf,application/pdf" onChange={handleImportFile} className="hidden" />
 
         {/* Actions row + secondary toolbar (Task 4 restyle) */}
         <VehicleActionsToolbar

@@ -61,6 +61,7 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 - **Fifth Wheel & Trailer Support** - Propane tracking, spot rental billing, and RV park management
 - **Unit Conversion** - Imperial/Metric units with per-user preferences
 - **Document Management** - Store registration, insurance, manuals with OCR
+- **PDF Import** - Import a vehicle PDF with OCR; the original is saved as a document and extracted text is added to vehicle notes. Use JSON import for complete data backups.
 - **Family Multi-User System** - Separate accounts with vehicle sharing, ownership transfers, and family dashboard
 - **Languages & Currencies** - English, German, French, Polish, Brazilian Portuguese, Russian, Ukrainian; 16 currencies
 - **Authentication Options** - No auth, local JWT, or OIDC (Authentik, Keycloak, Google, Azure AD)
@@ -76,7 +77,7 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 
 ## Vehicle Hub and CarChief Command integration
 
-Current Vehicle Hub fork version: **3.1.0**
+Current Vehicle Hub fork version: **3.1.1**
 
 This Vehicle Hub-maintained fork adds an optional, reviewed connection between
 MyGarage service history and the BMW-specific

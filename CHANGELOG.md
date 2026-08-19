@@ -5,6 +5,12 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.1] - 2026-08-19
+
+### Added
+- Vehicle Import now accepts PDF files. MyGarage stores the original PDF as a vehicle document and uses OCR to save extracted text as a vehicle note.
+- JSON remains the format for complete vehicle backup and restore; PDF import is intended for document capture and review.
+
 ## [3.1.0] - 2026-08-17
 
 ### Added

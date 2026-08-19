@@ -218,7 +218,9 @@
     "removeVehicle": "Remove Vehicle",
     "replaceSticker": "Replace sticker...",
     "saleInformation": "Sale Information",
-    "settings": { "title": "Vehicle Settings" },
+    "settings": {
+      "title": "Vehicle Settings"
+    },
     "share": "Share",
     "shareTooltip": "Share vehicle with other users",
     "shareVehicle": "Share Vehicle",
@@ -265,7 +267,7 @@
       "importOdometerRecords": "Odometer Records",
       "importServiceRecords": "Service Records",
       "importSummaryHeading": "Import completed:",
-      "importTooltip": "Import vehicle data from JSON",
+      "importTooltip": "Import vehicle data from JSON or a PDF with OCR",
       "importedCount": "{{count}} imported",
       "insurance": "Insurance",
       "interiorColor": "Interior Color",

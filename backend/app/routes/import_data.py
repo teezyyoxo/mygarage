@@ -11,6 +11,7 @@ were already updated to the new column names so v2 fallback paths must
 convert before constructing the model.
 """
 
+import asyncio
 import csv
 import io
 import json
@@ -18,6 +19,7 @@ import logging
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -31,6 +33,7 @@ from app.constants.fuel import FuelTypeEnum, normalize_fuel_type
 from app.database import get_db
 from app.models import (
     DEFRecord,
+    Document,
     FuelRecord,
     HoursRecord,
     InsurancePolicy,
@@ -45,6 +48,8 @@ from app.models import (
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.document_ocr import document_ocr_service
+from app.services.file_upload_service import DOCUMENT_UPLOAD_CONFIG, FileUploadService
 from app.utils.def_sync import ensure_def_capable
 from app.utils.file_validation import validate_csv_upload
 from app.utils.logging_utils import sanitize_for_log
@@ -145,6 +150,63 @@ router = APIRouter(prefix="/api/import", tags=["import"])
 # Valid service categories matching the ServiceVisit check constraint
 VALID_SERVICE_CATEGORIES = {"Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"}
 limiter = Limiter(key_func=get_remote_address)
+
+
+@router.post("/vehicles/{vin}/pdf")
+async def import_vehicle_pdf(
+    vin: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
+    """Store a PDF and save its OCR text as a vehicle note."""
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
+    filename = file.filename or "vehicle-document.pdf"
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+
+    upload_result = await FileUploadService.upload_file(
+        file, DOCUMENT_UPLOAD_CONFIG, subdirectory=vin
+    )
+    pdf_bytes = await asyncio.to_thread(Path(upload_result.file_path).read_bytes)
+    try:
+        extracted_text = await document_ocr_service.extract_text(pdf_bytes, is_pdf=True)
+    except Exception as exc:
+        logger.warning("PDF OCR failed for vin=%s: %s", sanitize_for_log(vin), exc)
+        extracted_text = ""
+
+    db.add(
+        Document(
+            vin=vin,
+            file_path=str(upload_result.file_path),
+            file_name=filename,
+            file_size=upload_result.file_size,
+            mime_type="application/pdf",
+            document_type="OCR Import",
+            title=f"OCR import: {filename.rsplit('.', 1)[0]}",
+            description="Imported from PDF with OCR. Extracted text is saved in the vehicle notes.",
+        )
+    )
+
+    note_count = 0
+    if extracted_text.strip():
+        db.add(
+            Note(
+                vin=vin,
+                date=date_type.today(),
+                title=f"OCR import: {filename.rsplit('.', 1)[0]}",
+                content=extracted_text[:250_000],
+            )
+        )
+        note_count = 1
+
+    await db.commit()
+    return {
+        "document": {"success_count": 1, "error_count": 0, "skipped_count": 0},
+        "notes": {"success_count": note_count, "error_count": 0, "skipped_count": 0},
+        "ocr_text_extracted": bool(extracted_text.strip()),
+    }
 
 
 class ImportResult:

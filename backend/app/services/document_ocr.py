@@ -30,6 +30,10 @@ class DocumentOCRService:
         self.supported_formats = {".pdf", ".jpg", ".jpeg", ".png"}
         self._paddleocr = None
 
+    async def extract_text(self, file_bytes: bytes, *, is_pdf: bool = True) -> str:
+        """Extract text without selecting a type-specific document parser."""
+        return await self._extract_text_from_bytes(file_bytes, is_pdf=is_pdf)
+
     async def extract_insurance_data(
         self,
         file_path: str | None = None,
