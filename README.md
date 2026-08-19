@@ -77,18 +77,18 @@ In this Vehicle Hub deployment, MyGarage is the user-facing maintenance
 application. Vehicle Hub itself has no dedicated interface; it provides the
 gateway and API backbone connecting MyGarage with CarChief Command.
 
-Build MyGarage with an explicit commit ID so the top navigation always shows
-which source revision is running:
+Set the commit ID in the ignored root `.env` file so the top navigation always
+shows which source revision is running:
 
 ```sh
 cd /path/to/vehicle-hub
-podman builder prune
-BUILD_COMMIT=$(git rev-parse --short HEAD) \
-	podman compose up -d --build mygarage vehicle-hub-sync vehicle-hub-gateway
+./redeploy.sh
 ```
 
-Run the cleanup separately from the deployment so `BUILD_COMMIT` is applied to
-the Compose command.
+`redeploy.sh` detects Docker or Podman, prunes that engine's builder cache on
+every run, refreshes `BUILD_COMMIT` from the current Git revision, and runs the
+matching Compose command. It accepts service names such as
+`./redeploy.sh mygarage`.
 
 `BUILD_COMMIT` is required by the root Compose deployment. The displayed
 application version comes from MyGarage's package version, while the commit
