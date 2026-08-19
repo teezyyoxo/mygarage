@@ -49,6 +49,8 @@ export default function SettingsIntegrationsTab() {
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [testing, setTesting] = useState(false)
   const [testingVehicleHub, setTestingVehicleHub] = useState(false)
+  const [editingVehicleHubVin, setEditingVehicleHubVin] = useState(false)
+  const [vehicleHubVerifiedAt, setVehicleHubVerifiedAt] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [providers, setProviders] = useState<POIProvider[]>([])
   const [isAddProviderModalOpen, setIsAddProviderModalOpen] = useState(false)
@@ -98,6 +100,7 @@ export default function SettingsIntegrationsTab() {
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
+      setVehicleHubVerifiedAt(settingsMap['vehicle_hub_vin_verified_at'] || null)
     } catch {
       // Removed console.error
       setMessage({ type: 'error', text: t('integrations.loadError') })
@@ -225,10 +228,11 @@ export default function SettingsIntegrationsTab() {
     setTestingVehicleHub(true)
     setMessage(null)
     try {
-      await api.post('/vehicle-hub/test-connection', { vehicleVin })
-      await api.post('/settings/batch', { settings: { vehicle_hub_vehicle_vin: vehicleVin } })
+      const { data } = await api.post('/vehicle-hub/test-connection', { vehicleVin })
       setFormData((current) => ({ ...current, vehicle_hub_vehicle_vin: vehicleVin }))
       setLoadedFormData((current) => current ? { ...current, vehicle_hub_vehicle_vin: vehicleVin } : current)
+      setVehicleHubVerifiedAt(data?.verifiedAt || null)
+      setEditingVehicleHubVin(false)
       setMessage({ type: 'success', text: t('integrations.vehicleHubTestSuccess') })
     } catch (error) {
       setMessage({ type: 'error', text: getActionErrorMessage(error, t('integrations.vehicleHubTestAction')) })
@@ -383,23 +387,45 @@ export default function SettingsIntegrationsTab() {
             <label htmlFor="vehicle_hub_vehicle_vin" className="block text-sm font-medium text-garage-text">
               {t('integrations.vehicleHubVin')}
             </label>
-            <input
-              id="vehicle_hub_vehicle_vin"
-              value={formData.vehicle_hub_vehicle_vin}
-              maxLength={17}
-              onChange={(event) => setFormData({ ...formData, vehicle_hub_vehicle_vin: event.target.value.toUpperCase() })}
-              className="w-full rounded-lg border border-garage-border bg-garage-bg px-3 py-2 font-mono text-sm text-garage-text"
-              placeholder="17-character VIN"
-            />
-            <button
-              type="button"
-              onClick={() => void handleTestVehicleHub()}
-              disabled={testingVehicleHub || formData.vehicle_hub_vehicle_vin.trim().length !== 17}
-              className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
-            >
-              <CheckCircle size={16} />
-              {testingVehicleHub ? t('integrations.testingConnection') : t('integrations.testVehicleHub')}
-            </button>
+            <div className="flex gap-2">
+              <input
+                id="vehicle_hub_vehicle_vin"
+                value={formData.vehicle_hub_vehicle_vin}
+                maxLength={17}
+                readOnly={!editingVehicleHubVin}
+                onChange={(event) => {
+                  setFormData({ ...formData, vehicle_hub_vehicle_vin: event.target.value.toUpperCase() })
+                  setVehicleHubVerifiedAt(null)
+                }}
+                className="min-w-0 flex-1 rounded-lg border border-garage-border bg-garage-bg px-3 py-2 font-mono text-sm text-garage-text read-only:opacity-75"
+                placeholder="17-character VIN"
+              />
+              {!editingVehicleHubVin && (
+                <button
+                  type="button"
+                  onClick={() => setEditingVehicleHubVin(true)}
+                  className="shrink-0 rounded-lg border border-garage-border px-3 py-2 text-sm text-garage-text hover:border-(--accent-line) hover:text-(--accent-fg)"
+                >
+                  {t('integrations.changeVehicleHubVin')}
+                </button>
+              )}
+            </div>
+            {editingVehicleHubVin && (
+              <button
+                type="button"
+                onClick={() => void handleTestVehicleHub()}
+                disabled={testingVehicleHub || formData.vehicle_hub_vehicle_vin.trim().length !== 17}
+                className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
+              >
+                <CheckCircle size={16} />
+                {testingVehicleHub ? t('integrations.testingConnection') : t('integrations.testVehicleHub')}
+              </button>
+            )}
+            {vehicleHubVerifiedAt && (
+              <p className="text-sm text-garage-text-muted">
+                {t('integrations.vehicleHubLastVerified', { timestamp: new Date(vehicleHubVerifiedAt).toLocaleString() })}
+              </p>
+            )}
             <p className="text-sm text-garage-text-muted">{t('integrations.vehicleHubVinDesc')}</p>
           </div>
         </div>

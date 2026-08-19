@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Any
 
 import httpx
@@ -81,7 +82,16 @@ async def test_connection(
     vin = str(payload.get("vehicleVin") or "").strip().upper()
     await get_vehicle_or_403(vin, current_user, db)
     result = await _forward("/v1/test", {"vehicleVin": vin})
-    return {"connected": True, "vehicleVin": vin, **result}
+    verified_at = dt.datetime.now(dt.UTC).isoformat()
+    await SettingsService.set(db, "vehicle_hub_vehicle_vin", vin, category="integration")
+    await SettingsService.set(
+        db,
+        "vehicle_hub_vin_verified_at",
+        verified_at,
+        category="integration",
+    )
+    await db.commit()
+    return {"connected": True, "vehicleVin": vin, "verifiedAt": verified_at, **result}
 
 
 @router.post("/reconcile")

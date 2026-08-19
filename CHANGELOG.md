@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The top navigation now displays the running MyGarage version and frontend build commit for easier deployment verification.
 - Vehicle Hub transfer controls are disabled outside the configured Command VIN and explain the integration scope on hover.
 - Vehicle Hub scope is now configured by VIN in Settings. Test Connection verifies that VIN against the vehicle paired with CarChief Command before enabling transfers.
+- The verified Command VIN is now persisted as a locked setting with a Last verified timestamp; changing it requires an explicit Change VIN action and a new successful connection test.
 
 ## [3.1.0] - 2026-08-17
 
