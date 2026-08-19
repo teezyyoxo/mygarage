@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Vehicle Import now accepts PDF files. MyGarage stores the original PDF as a vehicle document and uses OCR to save extracted text as a vehicle note.
 - JSON remains the format for complete vehicle backup and restore; PDF import is intended for document capture and review.
+- The top navigation now displays the running MyGarage version and frontend build commit for easier deployment verification.
 
 ## [3.1.0] - 2026-08-17
 

@@ -31,6 +31,7 @@
   "searchPlaceholder": "Search vehicles, service, VIN…",
   "openMenu": "Open menu",
   "closeMenu": "Close menu",
+  "buildInfo": "MyGarage version and build commit",
   "searchShellTitle": "Search is coming soon",
   "searchShellBody": "Global search across vehicles, service history, and VINs is on the way.",
   "notifications": "Notifications",

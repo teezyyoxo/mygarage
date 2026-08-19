@@ -5,6 +5,7 @@
 # ==============================================================================
 
 ARG BUN_VERSION=1.3.14
+ARG BUILD_COMMIT=dev
 
 # Stage 1: Build frontend with Bun
 #
@@ -16,6 +17,9 @@ ARG BUN_VERSION=1.3.14
 # would not help. Build-stage only: just dist/ is copied into the
 # python:3.14-slim runtime, so this costs the shipped image nothing.
 FROM oven/bun:${BUN_VERSION}-slim AS frontend-builder
+
+ARG BUILD_COMMIT
+ENV BUILD_COMMIT=${BUILD_COMMIT}
 
 # Set working directory
 WORKDIR /app/frontend
@@ -62,6 +66,7 @@ FROM python:3.14-slim
 
 # Build arguments for metadata
 ARG BUILD_DATE
+ARG BUILD_COMMIT
 # Re-declare BUN_VERSION inside this stage — Docker ARG scope resets at every
 # FROM. Without this redeclaration, ${BUN_VERSION} expands to empty in LABEL.
 ARG BUN_VERSION
@@ -72,6 +77,7 @@ LABEL org.opencontainers.image.title="MyGarage"
 LABEL org.opencontainers.image.url="https://www.homelabforge.io"
 LABEL org.opencontainers.image.description="Vehicle and garage management platform with maintenance tracking"
 LABEL org.opencontainers.image.frontend.builder="bun-${BUN_VERSION}"
+LABEL org.opencontainers.image.revision="${BUILD_COMMIT}"
 
 WORKDIR /app
 

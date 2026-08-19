@@ -9,6 +9,7 @@ import { injectSwFontAssets } from './scripts/inject-sw-font-assets'
 export default defineConfig({
   define: {
     APP_VERSION: JSON.stringify(pkg.version),
+    BUILD_COMMIT: JSON.stringify(process.env.BUILD_COMMIT || 'dev'),
   },
   // Relative base so the single prebuilt image serves under any URL prefix
   // (#107). Assets + dynamic imports resolve relative to the injected <base

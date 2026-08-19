@@ -7,6 +7,7 @@ import TopNavLink from './TopNavLink'
 import RightCluster from './RightCluster'
 import HamburgerPanel from './HamburgerPanel'
 import { DESKTOP_NAV_ITEMS } from './navItems'
+import { useAppVersion } from '../../hooks/useAppVersion'
 
 /**
  * The 62px sticky top bar (prototype dc.html:38-39). One nav affordance per
@@ -20,6 +21,7 @@ import { DESKTOP_NAV_ITEMS } from './navItems'
 export default function TopNav() {
   const { t } = useTranslation('nav')
   const [menuOpen, setMenuOpen] = useState(false)
+  const version = useAppVersion()
 
   return (
     <header className="sticky top-0 z-nav border-b border-hair bg-(--color-nav) backdrop-blur-[12px]">
@@ -31,6 +33,9 @@ export default function TopNav() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <span className="hidden text-[11px] text-text-mute nav:inline" title={t('buildInfo')}>
+            v{version} · {BUILD_COMMIT}
+          </span>
           <RightCluster />
           <IconButton
             icon={menuOpen ? X : Menu}
