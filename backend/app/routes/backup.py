@@ -393,6 +393,39 @@ async def upload_backup(
         raise HTTPException(status_code=500, detail="Error saving backup file")
 
 
+@router.post("/import/preview")
+async def preview_import(
+    filename: str,
+    current_user: User | None = Depends(get_current_admin_user),
+) -> dict[str, Any]:
+    """Preview a staged full backup before merge or replace."""
+    try:
+        return get_backup_service().preview_full_backup(filename)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+
+@router.post("/import/{mode}")
+async def import_backup(
+    mode: str,
+    filename: str,
+    current_user: User | None = Depends(get_current_admin_user),
+) -> dict[str, Any]:
+    """Apply a staged full backup using explicit merge or replace mode."""
+    if mode not in {"merge", "replace"}:
+        raise HTTPException(status_code=400, detail="Import mode must be merge or replace")
+    try:
+        service = get_backup_service()
+        details = await service.restore_full_backup(filename) if mode == "replace" else service.merge_full_backup(filename)
+        return {"success": True, "mode": mode, "details": details}
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
+
+
 @router.delete("/{filename}")
 async def delete_backup(
     filename: str, current_user: User | None = Depends(get_current_admin_user)

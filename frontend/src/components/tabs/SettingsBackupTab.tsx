@@ -41,6 +41,14 @@ interface BackupStats {
   }
 }
 
+interface ImportPreview {
+  filename: string
+  tables: Array<{ name: string; imported: number; current: number; incoming: number }>
+  files: Array<{ path: string; size: number }>
+  file_count: number
+  record_count: number
+}
+
 export default function SettingsBackupTab() {
   const { t } = useTranslation('settings')
   const { timeFormat } = useTimeFormat()
@@ -48,6 +56,10 @@ export default function SettingsBackupTab() {
   const [stats, setStats] = useState<BackupStats | null>(null)
   const [settingsBackups, setSettingsBackups] = useState<BackupFile[]>([])
   const [fullBackups, setFullBackups] = useState<BackupFile[]>([])
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
+  const [importMode, setImportMode] = useState<'merge' | 'replace' | null>(null)
+  const [importStep, setImportStep] = useState<'choose' | 'confirm' | 'preview' | null>(null)
+  const [importing, setImporting] = useState(false)
   const [creatingSettings, setCreatingSettings] = useState(false)
   const [creatingFull, setCreatingFull] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null)
@@ -124,6 +136,10 @@ export default function SettingsBackupTab() {
   }
 
   const handleRestore = async (filename: string, isFullBackup: boolean) => {
+    if (isFullBackup) {
+      await beginFullImport(filename)
+      return
+    }
     const confirmMessage = isFullBackup
       ? t('backupTab.confirmRestoreFull')
       : t('backupTab.confirmRestoreSettings')
@@ -154,6 +170,47 @@ export default function SettingsBackupTab() {
     }
   }
 
+  const beginFullImport = async (filename: string) => {
+    try {
+      const { data } = await api.post('/backup/import/preview', null, { params: { filename } })
+      setImportPreview(data)
+      setImportMode(null)
+      setImportStep('choose')
+    } catch (err: unknown) {
+      setMessage({ type: 'error', text: getActionErrorMessage(err, t('backupTab.importAction')) })
+    }
+  }
+
+  const chooseImportMode = (mode: 'merge' | 'replace') => {
+    setImportMode(mode)
+    setImportStep('confirm')
+  }
+
+  const confirmImport = async () => {
+    if (!importPreview || !importMode) return
+    if (importMode === 'merge') {
+      setImportStep('preview')
+      return
+    }
+    await executeImport()
+  }
+
+  const executeImport = async () => {
+    if (!importPreview || !importMode) return
+    setImporting(true)
+    try {
+      const { data } = await api.post(`/backup/import/${importMode}`, null, { params: { filename: importPreview.filename } })
+      setMessage({ type: 'success', text: data.details?.message || t('backupTab.importSuccess') })
+      setImportStep(null)
+      setImportPreview(null)
+      await loadData()
+    } catch (err: unknown) {
+      setMessage({ type: 'error', text: getActionErrorMessage(err, t('backupTab.importAction')) })
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const handleDelete = async (filename: string) => {
     if (!confirm(t('backupTab.confirmDelete', { filename }))) {
       return
@@ -178,8 +235,13 @@ export default function SettingsBackupTab() {
           'Content-Type': 'multipart/form-data',
         },
       })
-      setMessage({ type: 'success', text: response.data.message || t('backupTab.uploadSuccess') })
-      await loadData()
+      if (file.name.endsWith('.tar.gz')) {
+        await loadData()
+        await beginFullImport(response.data.backup.filename)
+      } else {
+        setMessage({ type: 'success', text: response.data.message || t('backupTab.uploadSuccess') })
+        await loadData()
+      }
     } catch (err: unknown) {
       setMessage({ type: 'error', text: getActionErrorMessage(err, t('backupTab.uploadAction')) })
     } finally {
@@ -515,6 +577,58 @@ export default function SettingsBackupTab() {
         )}
         </div>
       </div>
+      {importStep && importPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm" role="presentation">
+          <section className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-garage-border bg-garage-surface p-6 shadow-2xl" role="dialog" aria-modal="true">
+            {importStep === 'choose' && (
+              <>
+                <h2 className="text-xl font-semibold text-garage-text">{t('backupTab.importTitle')}</h2>
+                <p className="mt-3 text-sm text-garage-text-muted">{t('backupTab.importWarning')}</p>
+                <div className="mt-6 flex flex-wrap justify-end gap-3">
+                  <button type="button" onClick={() => setImportStep(null)} className="btn btn-secondary">{t('common:cancel')}</button>
+                  <button type="button" onClick={() => chooseImportMode('merge')} className="btn btn-primary">{t('backupTab.merge')}</button>
+                  <button type="button" onClick={() => chooseImportMode('replace')} className="btn bg-danger-600 text-white">{t('backupTab.replace')}</button>
+                </div>
+              </>
+            )}
+            {importStep === 'confirm' && importMode && (
+              <>
+                <h2 className="text-xl font-semibold text-garage-text">{t('backupTab.areYouSure')}</h2>
+                <p className="mt-3 text-sm text-garage-text-muted">{importMode === 'replace' ? t('backupTab.replaceConfirm') : t('backupTab.mergeConfirm')}</p>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={() => setImportStep('choose')} className="btn btn-secondary">{t('common:cancel')}</button>
+                  <button type="button" disabled={importing} onClick={() => void confirmImport()} className="btn btn-primary">{t('backupTab.continue')}</button>
+                </div>
+              </>
+            )}
+            {importStep === 'preview' && (
+              <>
+                <h2 className="text-xl font-semibold text-garage-text">{t('backupTab.mergePreview')}</h2>
+                <p className="mt-2 text-sm text-garage-text-muted">{t('backupTab.mergePreviewDesc')}</p>
+                <div className="mt-4 max-h-72 overflow-y-auto rounded border border-garage-border">
+                  {importPreview.tables.map((table) => (
+                    <div key={table.name} className="flex justify-between border-b border-garage-border px-3 py-2 text-sm text-garage-text">
+                      <span>{table.name}</span><span className="text-garage-text-muted">{table.incoming} incoming / {table.current} existing</span>
+                    </div>
+                  ))}
+                  <div className="border-b border-garage-border px-3 py-2 text-sm font-medium text-garage-text">
+                    {t('backupTab.filesToMerge', { count: importPreview.file_count })}
+                  </div>
+                  {importPreview.files.map((file) => (
+                    <div key={file.path} className="border-b border-garage-border px-3 py-1 text-xs text-garage-text-muted">
+                      {file.path}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={() => setImportStep(null)} className="btn btn-secondary">{t('common:cancel')}</button>
+                  <button type="button" disabled={importing} onClick={() => void executeImport()} className="btn btn-primary">{t('backupTab.confirmMerge')}</button>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   )
 }

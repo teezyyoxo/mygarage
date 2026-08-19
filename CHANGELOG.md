@@ -5,6 +5,12 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.2] - 2026-08-19
+
+### Added
+- Full database export/import now supports moving a MyGarage deployment to another server.
+- Full-backup imports require a warning, an explicit Merge or Replace choice, and a second confirmation. Merge shows a complete record/table and uploaded-file preview before applying; Replace creates a safety backup before wiping and restoring the imported data.
+
 ## [3.1.1] - 2026-08-19
 
 ### Added

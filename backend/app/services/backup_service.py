@@ -570,6 +570,121 @@ class BackupService:
             "message": "Full backup restored successfully. Application restart may be required.",
         }
 
+    def preview_full_backup(self, filename: str) -> dict[str, Any]:
+        """Summarize a full archive before a merge or replacement."""
+        if not self.is_sqlite or not self.database_path:
+            raise RuntimeError("Import preview is currently supported for SQLite deployments only")
+        backup_path = self.validate_filename(filename)
+        if not backup_path.exists() or not filename.endswith(".tar.gz"):
+            raise FileNotFoundError(f"Full backup not found: {filename}")
+
+        with tempfile.TemporaryDirectory() as tmpdir, tarfile.open(backup_path, "r:gz") as tar:
+            members = tar.getmembers()
+            self._validate_backup_members(members)
+            database_member = next((m for m in members if m.name == "mygarage.db"), None)
+            if database_member is None:
+                raise ValueError("Invalid full backup: missing mygarage.db")
+            extracted = tar.extractfile(database_member)
+            if extracted is None:
+                raise ValueError("Invalid full backup database")
+            snapshot = Path(tmpdir) / "import.db"
+            with extracted, snapshot.open("wb") as output:
+                shutil.copyfileobj(extracted, output)
+            imported = sqlite3.connect(snapshot)
+            current = sqlite3.connect(self.database_path)
+            try:
+                imported_tables = self._table_counts(imported)
+                current_tables = self._table_counts(current)
+            finally:
+                imported.close()
+                current.close()
+            files = [
+                {"path": "/".join(self._normalize_member_parts(m.name)), "size": m.size}
+                for m in members
+                if self._normalize_member_parts(m.name)[0] in self._SAFE_DIR_ROOTS and m.isfile()
+            ]
+        return {
+            "filename": filename,
+            "tables": [
+                {
+                    "name": name,
+                    "imported": count,
+                    "current": current_tables.get(name, 0),
+                    "incoming": count,
+                }
+                for name, count in imported_tables.items()
+            ],
+            "files": files,
+            "file_count": len(files),
+            "record_count": sum(imported_tables.values()),
+        }
+
+    def _table_counts(self, connection: sqlite3.Connection) -> dict[str, int]:
+        tables = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+        counts: dict[str, int] = {}
+        for (table_name,) in tables:
+            counts[str(table_name)] = int(
+                connection.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()[0]
+            )
+        return counts
+
+    def merge_full_backup(self, filename: str) -> dict[str, Any]:
+        """Merge rows and files from a full SQLite archive, retaining current data."""
+        if not self.is_sqlite or not self.database_path:
+            raise RuntimeError("Merge is currently supported for SQLite deployments only")
+        backup_path = self.validate_filename(filename)
+        with tempfile.TemporaryDirectory() as tmpdir, tarfile.open(backup_path, "r:gz") as tar:
+            members = tar.getmembers()
+            self._validate_backup_members(members)
+            database_member = next((m for m in members if m.name == "mygarage.db"), None)
+            if database_member is None:
+                raise ValueError("Invalid full backup: missing mygarage.db")
+            extracted = tar.extractfile(database_member)
+            if extracted is None:
+                raise ValueError("Invalid full backup database")
+            imported_path = Path(tmpdir) / "import.db"
+            with extracted, imported_path.open("wb") as output:
+                shutil.copyfileobj(extracted, output)
+            target = sqlite3.connect(self.database_path)
+            try:
+                target.execute("PRAGMA foreign_keys=OFF")
+                target.execute("ATTACH DATABASE ? AS imported", (str(imported_path),))
+                tables = target.execute(
+                    "SELECT name FROM imported.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+                ).fetchall()
+                merged = 0
+                for (table_name,) in tables:
+                    columns = [row[1] for row in target.execute(f'PRAGMA imported.table_info("{table_name}")')]
+                    if not columns:
+                        continue
+                    quoted = ", ".join(f'"{column}"' for column in columns)
+                    before_changes = target.total_changes
+                    target.execute(
+                        f'INSERT OR IGNORE INTO "{table_name}" ({quoted}) SELECT {quoted} FROM imported."{table_name}"'
+                    )
+                    merged += target.total_changes - before_changes
+                target.commit()
+                target.execute("DETACH DATABASE imported")
+                target.execute("PRAGMA foreign_keys=ON")
+            finally:
+                target.close()
+            copied_files = 0
+            for member in members:
+                parts = self._normalize_member_parts(member.name)
+                if not parts or parts[0] not in self._SAFE_DIR_ROOTS or not member.isfile():
+                    continue
+                destination = self.data_dir.joinpath(*parts)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if not destination.exists():
+                    extracted_file = tar.extractfile(member)
+                    if extracted_file:
+                        with extracted_file, destination.open("wb") as output:
+                            shutil.copyfileobj(extracted_file, output)
+                        copied_files += 1
+        return {"merged_records": merged, "copied_files": copied_files, "source_backup": filename}
+
     def validate_filename(self, filename: str) -> Path:
         """Validate and sanitize filename to prevent path traversal.
 
