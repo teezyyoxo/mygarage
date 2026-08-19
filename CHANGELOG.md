@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vehicle Import now accepts PDF files. MyGarage stores the original PDF as a vehicle document and uses OCR to save extracted text as a vehicle note.
 - JSON remains the format for complete vehicle backup and restore; PDF import is intended for document capture and review.
 - The top navigation now displays the running MyGarage version and frontend build commit for easier deployment verification.
+- Vehicle Hub transfer controls are disabled outside the configured Command VIN and explain the integration scope on hover.
+- Vehicle Hub scope is now configured by VIN in Settings. Test Connection verifies that VIN against the vehicle paired with CarChief Command before enabling transfers.
 
 ## [3.1.0] - 2026-08-17
 

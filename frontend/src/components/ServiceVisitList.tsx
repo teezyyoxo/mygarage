@@ -87,6 +87,7 @@ export default function ServiceVisitList({
   const [visitAttachments, setVisitAttachments] = useState<Record<number, Attachment[]>>({})
   const [hubReview, setHubReview] = useState<HubReview | null>(null)
   const [hubLoading, setHubLoading] = useState(false)
+  const [vehicleHubEnabled, setVehicleHubEnabled] = useState(false)
   const { system, showBoth } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
   // Task 14 — which usage dimension(s) this vehicle tracks, driving the
@@ -104,6 +105,18 @@ export default function ServiceVisitList({
   const deleteMutation = useDeleteServiceVisit(vin)
 
   const visits = useMemo(() => data?.visits ?? [], [data?.visits])
+
+  useEffect(() => {
+    let active = true
+    api.get('/vehicle-hub/scope', { params: { vehicleVin: vin } })
+      .then(({ data }) => {
+        if (active) setVehicleHubEnabled(data?.enabled === true)
+      })
+      .catch(() => {
+        if (active) setVehicleHubEnabled(false)
+      })
+    return () => { active = false }
+  }, [vin])
 
   useEffect(() => {
     if (!visits.length || typeof window === 'undefined') return
@@ -344,9 +357,11 @@ export default function ServiceVisitList({
             />
           )}
           <Button variant="primary" icon={Plus} onClick={onAddClick}>{t('serviceList.logVisit')}</Button>
-          <Button variant="secondary" icon={ArrowRightLeft} disabled={hubLoading || visits.length === 0} onClick={() => void startHubReview()}>
-            {hubLoading ? t('serviceList.vehicleHub.preparing') : t('serviceList.vehicleHub.sendToCommand')}
-          </Button>
+          <span title={vehicleHubEnabled ? undefined : t('serviceList.vehicleHub.outsideScope')}>
+            <Button variant="secondary" icon={ArrowRightLeft} disabled={!vehicleHubEnabled || hubLoading || visits.length === 0} onClick={() => void startHubReview()}>
+              {hubLoading ? t('serviceList.vehicleHub.preparing') : t('serviceList.vehicleHub.sendToCommand')}
+            </Button>
+          </span>
         </div>
       </div>
 
@@ -455,7 +470,11 @@ export default function ServiceVisitList({
                       inside it — so the header stays a single keyboard-operable control
                       with no button-in-button, and no stopPropagation is needed. */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {!importedFromCommand && <IconButton icon={ArrowRightLeft} label={t('serviceList.vehicleHub.sendThisToCommand')} variant="ghost" size="sm" disabled={hubLoading} onClick={() => void startHubReview(visit.id)} />}
+                    {!importedFromCommand && (
+                      <span title={vehicleHubEnabled ? undefined : t('serviceList.vehicleHub.outsideScope')}>
+                        <IconButton icon={ArrowRightLeft} label={t('serviceList.vehicleHub.sendThisToCommand')} variant="ghost" size="sm" disabled={!vehicleHubEnabled || hubLoading} onClick={() => void startHubReview(visit.id)} />
+                      </span>
+                    )}
                     {!importedFromCommand && <IconButton icon={Edit} label={t('common:edit')} variant="ghost" size="sm" onClick={() => onEditClick(visit)} />}
                     {!importedFromCommand && <IconButton icon={Trash2} label={t('common:delete')} variant="danger" size="sm" disabled={deleteMutation.isPending && deleteMutation.variables === visit.id} onClick={() => handleDelete(visit.id)} />}
                   </div>

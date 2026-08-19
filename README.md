@@ -71,13 +71,33 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 
 **Default Mode**: Runs with no authentication for easy setup. Configure authentication in Settings before exposing to the internet.
 
+## Deployment and build identity
+
+In this Vehicle Hub deployment, MyGarage is the user-facing maintenance
+application. Vehicle Hub itself has no dedicated interface; it provides the
+gateway and API backbone connecting MyGarage with CarChief Command.
+
+Build MyGarage with an explicit commit ID so the top navigation always shows
+which source revision is running:
+
+```sh
+cd /path/to/vehicle-hub
+BUILD_COMMIT=$(git rev-parse --short HEAD) \
+	podman compose up -d --build mygarage vehicle-hub-sync vehicle-hub-gateway
+```
+
+`BUILD_COMMIT` is required by the root Compose deployment. The displayed
+application version comes from MyGarage's package version, while the commit
+identifies the deployed build. Use the same command after changing either the
+Vehicle Hub files or the MyGarage submodule.
+
 📖 **[Complete Installation Guide](https://github.com/homelabforge/mygarage/wiki/Installation)**
 
 ---
 
 ## Vehicle Hub and CarChief Command integration
 
-Current Vehicle Hub fork version: **3.1.1**
+Current MyGarage fork version: **3.1.1**
 
 This Vehicle Hub-maintained fork adds an optional, reviewed connection between
 MyGarage service history and the BMW-specific

@@ -927,6 +927,7 @@
       "noDate": "No date",
       "noWrite": "No write required",
       "oneUse": "One-use review; expires in 15 minutes",
+      "outsideScope": "Vehicle Hub is available only for the configured Command vehicle",
       "previewAction": "preview synchronization",
       "previewFailed": "Vehicle Hub preview failed",
       "preparing": "Preparing…",

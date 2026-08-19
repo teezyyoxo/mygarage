@@ -5,13 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.settings_service import SettingsService
 
 JsonObject = dict[str, Any]
 router = APIRouter(prefix="/api/vehicle-hub", tags=["Vehicle Hub Review"])
@@ -45,13 +46,42 @@ async def _forward(path: str, payload: JsonObject) -> JsonObject:
     return result
 
 
+async def _configured_vin(db: AsyncSession) -> str:
+    configured_setting = await SettingsService.get(db, "vehicle_hub_vehicle_vin")
+    return (configured_setting.value if configured_setting else settings.vehicle_hub_vehicle_vin).strip().upper()
+
+
 async def _scope(payload: JsonObject, current_user: User, db: AsyncSession) -> str:
     vin = str(payload.get("vehicleVin") or "").strip().upper()
-    configured = settings.vehicle_hub_vehicle_vin.strip().upper()
+    configured = await _configured_vin(db)
     if not configured or vin != configured:
         raise HTTPException(status_code=403, detail="Vehicle VIN is outside integration scope")
     await get_vehicle_or_403(vin, current_user, db)
     return vin
+
+
+@router.get("/scope")
+async def scope(
+    vehicle_vin: str = Query(..., alias="vehicleVin"),
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, bool | str]:
+    vin = vehicle_vin.strip().upper()
+    await get_vehicle_or_403(vin, current_user, db)
+    configured = await _configured_vin(db)
+    return {"enabled": bool(configured and vin == configured), "vehicleVin": vin}
+
+
+@router.post("/test-connection")
+async def test_connection(
+    payload: JsonObject,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+) -> JsonObject:
+    vin = str(payload.get("vehicleVin") or "").strip().upper()
+    await get_vehicle_or_403(vin, current_user, db)
+    result = await _forward("/v1/test", {"vehicleVin": vin})
+    return {"connected": True, "vehicleVin": vin, **result}
 
 
 @router.post("/reconcile")

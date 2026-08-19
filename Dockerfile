@@ -5,7 +5,7 @@
 # ==============================================================================
 
 ARG BUN_VERSION=1.3.14
-ARG BUILD_COMMIT=dev
+ARG BUILD_COMMIT
 
 # Stage 1: Build frontend with Bun
 #
@@ -36,6 +36,7 @@ COPY frontend/ ./
 
 # Build production bundle
 # Bun runs Vite, which produces identical output to Node.js version
+RUN test -n "$BUILD_COMMIT"
 RUN bun run build
 
 # Verify build output exists (fail fast if build failed)

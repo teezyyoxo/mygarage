@@ -48,6 +48,7 @@ export default function SettingsIntegrationsTab() {
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [testing, setTesting] = useState(false)
+  const [testingVehicleHub, setTestingVehicleHub] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [providers, setProviders] = useState<POIProvider[]>([])
   const [isAddProviderModalOpen, setIsAddProviderModalOpen] = useState(false)
@@ -71,6 +72,7 @@ export default function SettingsIntegrationsTab() {
     carcomplaints_enabled: 'true',
     tomtom_api_key: '',
     tomtom_enabled: 'false',
+    vehicle_hub_vehicle_vin: '',
   })
   const [loadedFormData, setLoadedFormData] = useState<typeof formData | null>(null)
 
@@ -92,6 +94,7 @@ export default function SettingsIntegrationsTab() {
         carcomplaints_enabled: settingsMap['carcomplaints_enabled'] || 'true',
         tomtom_api_key: settingsMap['tomtom_api_key'] || '',
         tomtom_enabled: settingsMap['tomtom_enabled'] || 'false',
+        vehicle_hub_vehicle_vin: settingsMap['vehicle_hub_vehicle_vin'] || '',
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
@@ -209,6 +212,28 @@ export default function SettingsIntegrationsTab() {
       setMessage({ type: 'error', text: t('integrations.nhtsaTestFailed') })
     } finally {
       setTesting(false)
+    }
+  }
+
+  const handleTestVehicleHub = async () => {
+    const vehicleVin = formData.vehicle_hub_vehicle_vin.trim().toUpperCase()
+    if (vehicleVin.length !== 17) {
+      setMessage({ type: 'error', text: t('integrations.vehicleHubInvalidVin') })
+      return
+    }
+
+    setTestingVehicleHub(true)
+    setMessage(null)
+    try {
+      await api.post('/vehicle-hub/test-connection', { vehicleVin })
+      await api.post('/settings/batch', { settings: { vehicle_hub_vehicle_vin: vehicleVin } })
+      setFormData((current) => ({ ...current, vehicle_hub_vehicle_vin: vehicleVin }))
+      setLoadedFormData((current) => current ? { ...current, vehicle_hub_vehicle_vin: vehicleVin } : current)
+      setMessage({ type: 'success', text: t('integrations.vehicleHubTestSuccess') })
+    } catch (error) {
+      setMessage({ type: 'error', text: getActionErrorMessage(error, t('integrations.vehicleHubTestAction')) })
+    } finally {
+      setTestingVehicleHub(false)
     }
   }
 
@@ -345,6 +370,39 @@ export default function SettingsIntegrationsTab() {
 
         {/* Right column: CarComplaints + LiveLink stacked */}
         <div className="space-y-6">
+        {/* Vehicle Hub Integration */}
+        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
+          <div className="flex items-start gap-3 mb-6">
+            <Plug className="w-6 h-6 text-primary mt-1" />
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.vehicleHub')}</h2>
+              <p className="text-sm text-garage-text-muted">{t('integrations.vehicleHubDesc')}</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <label htmlFor="vehicle_hub_vehicle_vin" className="block text-sm font-medium text-garage-text">
+              {t('integrations.vehicleHubVin')}
+            </label>
+            <input
+              id="vehicle_hub_vehicle_vin"
+              value={formData.vehicle_hub_vehicle_vin}
+              maxLength={17}
+              onChange={(event) => setFormData({ ...formData, vehicle_hub_vehicle_vin: event.target.value.toUpperCase() })}
+              className="w-full rounded-lg border border-garage-border bg-garage-bg px-3 py-2 font-mono text-sm text-garage-text"
+              placeholder="17-character VIN"
+            />
+            <button
+              type="button"
+              onClick={() => void handleTestVehicleHub()}
+              disabled={testingVehicleHub || formData.vehicle_hub_vehicle_vin.trim().length !== 17}
+              className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
+            >
+              <CheckCircle size={16} />
+              {testingVehicleHub ? t('integrations.testingConnection') : t('integrations.testVehicleHub')}
+            </button>
+            <p className="text-sm text-garage-text-muted">{t('integrations.vehicleHubVinDesc')}</p>
+          </div>
+        </div>
         {/* CarComplaints Integration */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
         <div className="flex items-start gap-3 mb-6">
