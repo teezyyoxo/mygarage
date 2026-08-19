@@ -82,9 +82,13 @@ which source revision is running:
 
 ```sh
 cd /path/to/vehicle-hub
+podman builder prune
 BUILD_COMMIT=$(git rev-parse --short HEAD) \
 	podman compose up -d --build mygarage vehicle-hub-sync vehicle-hub-gateway
 ```
+
+Run the cleanup separately from the deployment so `BUILD_COMMIT` is applied to
+the Compose command.
 
 `BUILD_COMMIT` is required by the root Compose deployment. The displayed
 application version comes from MyGarage's package version, while the commit
