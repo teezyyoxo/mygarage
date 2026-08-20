@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -52,11 +53,47 @@ async def _configured_vin(db: AsyncSession) -> str:
     return (configured_setting.value if configured_setting else settings.vehicle_hub_vehicle_vin).strip().upper()
 
 
+async def _configured_command_url(db: AsyncSession) -> str:
+    configured_setting = await SettingsService.get(db, "vehicle_hub_command_url")
+    return (configured_setting.value if configured_setting else "").strip().rstrip("/")
+
+
+def _normalize_command_url(value: Any) -> str:
+    raw = str(value or "").strip().rstrip("/")
+    try:
+        parsed = urlparse(raw)
+        port = parsed.port
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Command URL contains an invalid port") from exc
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="Command URL must start with http:// or https://")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise HTTPException(
+            status_code=400,
+            detail="Command URL cannot contain credentials, a query, or a fragment",
+        )
+    if port is None:
+        raise HTTPException(status_code=400, detail="Command URL must include an explicit port")
+    return raw
+
+
+async def _test_connection(
+    payload: JsonObject, current_user: User, db: AsyncSession
+) -> tuple[str, str, JsonObject]:
+    vin = str(payload.get("vehicleVin") or "").strip().upper()
+    command_url = _normalize_command_url(payload.get("commandUrl"))
+    await get_vehicle_or_403(vin, current_user, db)
+    result = await _forward("/v1/test", {"vehicleVin": vin, "commandUrl": command_url})
+    return vin, command_url, result
+
+
 async def _scope(payload: JsonObject, current_user: User, db: AsyncSession) -> str:
     vin = str(payload.get("vehicleVin") or "").strip().upper()
     configured = await _configured_vin(db)
     if not configured or vin != configured:
         raise HTTPException(status_code=403, detail="Vehicle VIN is outside integration scope")
+    if not await _configured_command_url(db):
+        raise HTTPException(status_code=503, detail="A tested Command URL has not been saved")
     await get_vehicle_or_403(vin, current_user, db)
     return vin
 
@@ -70,7 +107,8 @@ async def scope(
     vin = vehicle_vin.strip().upper()
     await get_vehicle_or_403(vin, current_user, db)
     configured = await _configured_vin(db)
-    return {"enabled": bool(configured and vin == configured), "vehicleVin": vin}
+    command_url = await _configured_command_url(db)
+    return {"enabled": bool(configured and command_url and vin == configured), "vehicleVin": vin}
 
 
 @router.post("/test-connection")
@@ -79,11 +117,28 @@ async def test_connection(
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ) -> JsonObject:
-    vin = str(payload.get("vehicleVin") or "").strip().upper()
-    await get_vehicle_or_403(vin, current_user, db)
-    result = await _forward("/v1/test", {"vehicleVin": vin})
+    vin, command_url, result = await _test_connection(payload, current_user, db)
+    verified_at = dt.datetime.now(dt.UTC).isoformat()
+    return {
+        "connected": True,
+        "vehicleVin": vin,
+        "commandUrl": command_url,
+        "verifiedAt": verified_at,
+        **result,
+    }
+
+
+@router.post("/connection")
+async def save_connection(
+    payload: JsonObject,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+) -> JsonObject:
+    """Re-test and persist one exact VIN + Command URL pair."""
+    vin, command_url, result = await _test_connection(payload, current_user, db)
     verified_at = dt.datetime.now(dt.UTC).isoformat()
     await SettingsService.set(db, "vehicle_hub_vehicle_vin", vin, category="integration")
+    await SettingsService.set(db, "vehicle_hub_command_url", command_url, category="integration")
     await SettingsService.set(
         db,
         "vehicle_hub_vin_verified_at",
@@ -91,7 +146,13 @@ async def test_connection(
         category="integration",
     )
     await db.commit()
-    return {"connected": True, "vehicleVin": vin, "verifiedAt": verified_at, **result}
+    return {
+        "connected": True,
+        "vehicleVin": vin,
+        "commandUrl": command_url,
+        "verifiedAt": verified_at,
+        **result,
+    }
 
 
 @router.post("/reconcile")
@@ -101,6 +162,7 @@ async def reconcile(
     db: AsyncSession = Depends(get_db),
 ):
     await _scope(payload, current_user, db)
+    payload["commandUrl"] = await _configured_command_url(db)
     payload["direction"] = "mygarage-to-command"
     return await _forward("/v1/reconcile", payload)
 

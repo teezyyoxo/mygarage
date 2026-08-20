@@ -5,6 +5,16 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.3] - 2026-08-20
+
+### Added
+- The Vehicle Hub / CarChief Command settings card now accepts both the exact
+  Command VIN and a Command URL with an explicit port. Test Connection checks
+  the pair without saving it; Save becomes available only after values change
+  and that unchanged pair passes, then the backend re-tests before persisting.
+- Vehicle Import now opens a warning/confirmation modal before the JSON/PDF
+  file picker so users see the data impact before selecting a file.
+
 ## [3.1.2] - 2026-08-19
 
 ### Added

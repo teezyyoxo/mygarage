@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.routes.vehicle_hub import _category, _date, _decimal, _fingerprint, _notes
+from app.routes.vehicle_hub_ui import _normalize_command_url
 
 
 def test_command_record_mapping_is_bounded_and_stable():
@@ -31,3 +32,14 @@ def test_unknown_category_falls_back_without_accepting_invalid_schema_value():
 def test_invalid_source_date_is_rejected():
     with pytest.raises(HTTPException, match="YYYY-MM-DD"):
         _date("not-a-date")
+
+
+def test_command_url_requires_an_explicit_port_and_safe_origin_shape():
+    assert (
+        _normalize_command_url("http://deskmini.local:5300/")
+        == "http://deskmini.local:5300"
+    )
+    with pytest.raises(HTTPException, match="explicit port"):
+        _normalize_command_url("http://deskmini.local")
+    with pytest.raises(HTTPException, match="credentials"):
+        _normalize_command_url("http://user:secret@deskmini.local:5300")

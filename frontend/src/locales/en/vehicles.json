@@ -177,6 +177,10 @@
     "importData": "Import Data",
     "importError": "Failed to import data",
     "importSuccess": "Import completed successfully",
+    "importWarningTitle": "Import vehicle data?",
+    "importWarning": "Importing changes this vehicle by adding data from the selected JSON or PDF. A PDF is stored as a document and its extracted text is added to notes. These changes cannot be undone as one action, so make a backup first if you may need to roll them back.",
+    "importCancel": "Cancel",
+    "importChooseFile": "Continue to file selection",
     "importing": "Importing...",
     "keyFacts": {
       "spent": "Spent",

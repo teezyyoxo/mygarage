@@ -101,7 +101,7 @@ Vehicle Hub files or the MyGarage submodule.
 
 ## Vehicle Hub and CarChief Command integration
 
-Current MyGarage fork version: **3.1.2**
+Current MyGarage fork version: **3.1.3**
 
 This Vehicle Hub-maintained fork adds an optional, reviewed connection between
 MyGarage service history and the BMW-specific
@@ -128,6 +128,13 @@ Ignore Once, and Never Sync rather than being overwritten automatically.
 Records imported from Command show `Imported from Command`, remain read-only
 in MyGarage, and must be changed in their owning application before being
 transferred again.
+
+In **Settings → Integrations**, the **Vehicle Hub / CarChief Command** card
+stores the exact Command VIN and Command server origin, including its port
+(for example, `http://deskmini.local:5300`). **Test Connection** must pass for
+that exact pair before **Save** is enabled; changing either field requires a
+new test. Port 8788 is the private Vehicle Hub reconciliation listener, not
+the normal Command web/API origin.
 
 Vehicle Hub's root Compose configuration supplies the private adapter URL,
 exact VIN, and file-mounted shared token through these MyGarage settings:

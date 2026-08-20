@@ -105,6 +105,7 @@ export default function VehicleDetail() {
   const [openModal, setOpenModal] = useState<ModalType>(null)
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [showImportWarning, setShowImportWarning] = useState(false)
   const [fromCache, setFromCache] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [hasLiveLinkDevice, setHasLiveLinkDevice] = useState(false)
@@ -306,7 +307,7 @@ export default function VehicleDetail() {
   }
 
   const handleImportClick = () => {
-    fileInputRef.current?.click()
+    setShowImportWarning(true)
   }
 
   const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -631,6 +632,24 @@ export default function VehicleDetail() {
 
         {/* Hidden file input for import */}
         <input ref={fileInputRef} type="file" accept=".json,.pdf,application/pdf" onChange={handleImportFile} className="hidden" />
+
+        {showImportWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm" role="presentation">
+            <section className="w-full max-w-lg rounded-lg border border-garage-border bg-garage-surface p-6 shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="vehicle-import-warning-title">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-warning-500" />
+                <div>
+                  <h2 id="vehicle-import-warning-title" className="text-xl font-semibold text-garage-text">{t('detail.importWarningTitle')}</h2>
+                  <p className="mt-3 text-sm text-garage-text-muted">{t('detail.importWarning')}</p>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowImportWarning(false)}>{t('detail.importCancel')}</button>
+                <button type="button" className="btn btn-primary" onClick={() => { setShowImportWarning(false); fileInputRef.current?.click() }}>{t('detail.importChooseFile')}</button>
+              </div>
+            </section>
+          </div>
+        )}
 
         {/* Actions row + secondary toolbar (Task 4 restyle) */}
         <VehicleActionsToolbar
