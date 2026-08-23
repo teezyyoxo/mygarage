@@ -8,7 +8,6 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -68,11 +67,10 @@ class ServiceVisit(Base):
         order_by="ServiceLineItem.id",
     )
 
+    # service_category is a fleet-suggested free-form value (built-in defaults
+    # plus anything previously typed across the fleet) — no DB-level CHECK.
+    # See migration 086_drop_service_category_check.
     __table_args__ = (
-        CheckConstraint(
-            "service_category IN ('Maintenance', 'Inspection', 'Collision', 'Upgrades', 'Detailing')",
-            name="check_service_visit_category",
-        ),
         Index("idx_service_visits_vin", "vin"),
         Index("idx_service_visits_date", "date"),
         Index("idx_service_visits_vendor", "vendor_id"),

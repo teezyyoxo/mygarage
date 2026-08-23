@@ -5,6 +5,24 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.4] - 2026-08-23
+
+### Added
+
+- Service visit category is now a fleet-suggested field like the line-item
+  description: pick a built-in default (Maintenance, Inspection, Collision,
+  Upgrades, Detailing) or type your own, and any custom value typed on one
+  vehicle becomes a suggestion for every vehicle in the fleet. The
+  `service_visits.service_category` / `service_line_items.category` columns no
+  longer enforce a fixed list at the database level.
+- Added a live server log viewer to Settings → System (admin only), backed by
+  an in-memory ring buffer of recent backend log lines, with level filtering,
+  pause/resume, and clear — useful for diagnosing a silent/zero-result import
+  without needing container log access.
+- PDF vehicle imports that produce no extractable OCR text now log a clear
+  warning (visible in the new live log viewer) and report the note as skipped
+  rather than a silent zero-result success.
+
 ## [3.1.3] - 2026-08-20
 
 ### Added

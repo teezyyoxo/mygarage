@@ -70,6 +70,36 @@ class ServiceVisitService:
         """Initialize service visit service with database session."""
         self.db = db
 
+    async def list_service_categories(self) -> list[str]:
+        """
+        Get default categories plus every distinct custom category used by any
+        vehicle in the fleet (from both service_visits and their line items).
+
+        Returns:
+            Defaults in their usual order, followed by custom fleet-used
+            values (case-insensitively deduplicated against the defaults and
+            each other) sorted alphabetically.
+        """
+        from app.schemas.service_visit import DEFAULT_SERVICE_CATEGORIES
+
+        visit_categories = await self.db.execute(
+            select(ServiceVisit.service_category).where(ServiceVisit.service_category.isnot(None)).distinct()
+        )
+        line_item_categories = await self.db.execute(
+            select(ServiceLineItem.category).where(ServiceLineItem.category.isnot(None)).distinct()
+        )
+
+        seen_lower = {c.lower() for c in DEFAULT_SERVICE_CATEGORIES}
+        custom: dict[str, str] = {}
+        for row in (*visit_categories.scalars().all(), *line_item_categories.scalars().all()):
+            value = row.strip() if row else ""
+            if not value or value.lower() in seen_lower:
+                continue
+            seen_lower.add(value.lower())
+            custom.setdefault(value.lower(), value)
+
+        return [*DEFAULT_SERVICE_CATEGORIES, *sorted(custom.values(), key=str.lower)]
+
     async def list_service_visits(
         self, vin: str, current_user: User, skip: int = 0, limit: int = 100
     ) -> tuple[list[ServiceVisitResponse], int]:

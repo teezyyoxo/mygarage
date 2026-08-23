@@ -6,7 +6,9 @@ import {
   makeOptionalCurrencySchema,
   makeOptionalEngineHoursSchema,
 } from './shared'
-// Service categories matching backend Literal type
+// Built-in category suggestions shown alongside any fleet-used custom values
+// fetched via useServiceCategories(); the field itself accepts free text, same
+// as the line-item description field.
 export const SERVICE_CATEGORIES = ['Maintenance', 'Inspection', 'Collision', 'Upgrades', 'Detailing'] as const
 
 /**
@@ -27,7 +29,11 @@ export const makeServiceLineItemSchema = (t: TFunction) =>
       .string()
       .min(1, t('common:validation.serviceVisit.descriptionRequired'))
       .max(200, t('common:validation.serviceVisit.descriptionTooLong')),
-    category: z.enum(SERVICE_CATEGORIES).optional().or(z.literal('')),
+    category: z
+      .string()
+      .max(30, t('common:validation.serviceVisit.categoryTooLong'))
+      .optional()
+      .or(z.literal('')),
     cost: makeOptionalCurrencySchema(t),
     notes: z
       .string()

@@ -512,6 +512,7 @@
     "serviceVisit": {
       "descriptionRequired": "Description is required",
       "descriptionTooLong": "Description too long (max 200 characters)",
+      "categoryTooLong": "Category too long (max 30 characters)",
       "lineItemNotesTooLong": "Notes too long (max 1000 characters)",
       "inspectionResultInvalid": "Invalid inspection result",
       "inspectionSeverityInvalid": "Invalid inspection severity",

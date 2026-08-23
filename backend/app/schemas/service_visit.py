@@ -12,8 +12,20 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.reminder import ReminderCreate  # noqa: F401 — used in type annotations
 from app.schemas.supply import SupplyUsageInput, SupplyUsageResponse
 
-# Service category type (same as existing)
-ServiceCategory = Literal["Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"]
+# Service category is a fleet-suggested free-form value: a handful of built-in
+# defaults (see DEFAULT_SERVICE_CATEGORIES) plus anything previously typed
+# across the fleet, same as the line-item description field. Capped to match
+# the service_visits.service_category / service_line_items.category column
+# width (VARCHAR(30)).
+ServiceCategory = str
+DEFAULT_SERVICE_CATEGORIES = ["Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"]
+
+
+class ServiceCategoryListResponse(BaseModel):
+    """Response for the fleet-wide service category suggestion list."""
+
+    categories: list[str] = Field(..., description="Default plus fleet-used category names")
+
 
 # Inspection result types
 InspectionResult = Literal["passed", "failed", "needs_attention"]
@@ -24,7 +36,7 @@ class ServiceLineItemBase(BaseModel):
     """Base service line item schema."""
 
     description: str = Field(..., description="Service description", min_length=1, max_length=200)
-    category: ServiceCategory | None = Field(None, description="Service category")
+    category: ServiceCategory | None = Field(None, description="Service category", max_length=30)
     cost: Decimal | None = Field(None, description="Cost for this line item", ge=0)
     notes: str | None = Field(None, description="Additional notes", max_length=5000)
     is_inspection: bool = Field(default=False, description="Is this an inspection item")
@@ -104,7 +116,7 @@ class ServiceLineItemUpdate(BaseModel):
     id: int | None = Field(None, description="Existing item id; omit for new items")
     temp_id: int | None = Field(None, description="Client temp ID; must be negative; not persisted")
     description: str = Field(..., min_length=1, max_length=200)
-    category: ServiceCategory | None = None
+    category: ServiceCategory | None = Field(None, max_length=30)
     cost: Decimal | None = Field(None, ge=0)
     notes: str | None = Field(None, max_length=5000)
     is_inspection: bool = False
@@ -179,7 +191,9 @@ class ServiceVisitBase(BaseModel):
         le=9999999.9,
     )
     notes: str | None = Field(None, description="Visit notes", max_length=5000)
-    service_category: ServiceCategory | None = Field(None, description="Primary service category")
+    service_category: ServiceCategory | None = Field(
+        None, description="Primary service category", max_length=30
+    )
     insurance_claim_number: str | None = Field(
         None, description="Insurance claim number", max_length=50
     )
@@ -191,19 +205,11 @@ class ServiceVisitBase(BaseModel):
     @field_validator("service_category")
     @classmethod
     def validate_service_category(cls, v: str | None) -> str | None:
-        """Validate service category."""
+        """Trim whitespace; category is otherwise free-form (fleet-suggested)."""
         if v is None:
             return v
-        valid_types = [
-            "Maintenance",
-            "Inspection",
-            "Collision",
-            "Upgrades",
-            "Detailing",
-        ]
-        if v not in valid_types:
-            raise ValueError(f"Service category must be one of: {', '.join(valid_types)}")
-        return v
+        v = v.strip()
+        return v or None
 
 
 class ServiceVisitCreate(ServiceVisitBase):

@@ -62,10 +62,17 @@ export default function LineItemEditor({
   const { system } = useUnitPreference()
   const [expanded, setExpanded] = useState(true)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false)
   // currentMileage is in canonical km; show user's display unit.
   const currentDisplay = currentMileage != null
     ? (system === 'imperial' ? UnitConverter.kmToMiles(currentMileage) ?? currentMileage : currentMileage)
     : null
+
+  const filteredCategories = useMemo(
+    () =>
+      categories.filter((cat) => cat.toLowerCase().includes((item.category ?? '').toLowerCase())),
+    [categories, item.category]
+  )
 
   const suggestions = useMemo(
     () =>
@@ -150,17 +157,42 @@ export default function LineItemEditor({
         <div className="p-4 space-y-4">
           {/* Category and Description */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-garage-text mb-1">
                 {t('lineItemEditor.misc.categoryLabel')}
               </label>
-              <Select
-                value={item.category}
-                onChange={(e) => onChange(index, 'category', e.target.value)}
+              <input
+                type="text"
+                value={item.category ?? ''}
+                onChange={(e) => {
+                  onChange(index, 'category', e.target.value)
+                  setShowCategorySuggestions(true)
+                }}
+                onFocus={() => setShowCategorySuggestions(true)}
+                onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
+                placeholder={t('lineItemEditor.misc.typeOrSelect')}
                 disabled={disabled}
-                placeholder={t('lineItemEditor.misc.selectPlaceholder')}
-                options={categories.map((cat) => ({ value: cat, label: cat }))}
+                className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
               />
+              {/* Category suggestions: built-in defaults plus anything the fleet has used */}
+              {showCategorySuggestions && filteredCategories.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-garage-surface border border-garage-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {filteredCategories.slice(0, 12).map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        onChange(index, 'category', cat)
+                        setShowCategorySuggestions(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-garage-text hover:bg-primary/10 transition-colors"
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-2 relative">

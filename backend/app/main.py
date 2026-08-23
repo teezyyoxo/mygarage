@@ -68,6 +68,13 @@ def _configure_logging() -> None:
 
     logging.basicConfig(level=level, format=fmt, handlers=handlers, force=True)
 
+    # Mirror everything into an in-memory ring buffer so Settings -> System
+    # can show a live tail without needing to reach into Docker's log driver.
+    from app.utils.log_buffer import log_buffer_handler
+
+    log_buffer_handler.setFormatter(logging.Formatter("%(message)s"))
+    logging.getLogger().addHandler(log_buffer_handler)
+
 
 _configure_logging()
 logger = logging.getLogger(__name__)
@@ -317,6 +324,7 @@ from app.routes import (
     recalls_router,
     reminders_router,
     reports_router,
+    service_categories_router,
     service_visits_router,
     settings_router,
     shop_discovery_router,
@@ -385,6 +393,7 @@ app.include_router(poi_router)  # New POI router
 app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
 app.include_router(vendors_router)
 app.include_router(service_visits_router)
+app.include_router(service_categories_router)
 app.include_router(vehicle_hub_router)
 app.include_router(vehicle_hub_ui_router)
 app.include_router(reminders_router)

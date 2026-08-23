@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -685,3 +685,24 @@ async def get_system_info(
         database_size_mb=database_size_mb,
         uptime_seconds=round(uptime_seconds, 0),
     )
+
+
+@router.get("/system/logs")
+async def get_system_logs(
+    limit: int = Query(200, ge=1, le=1000, description="Maximum log lines to return"),
+    after_id: int | None = Query(
+        None, description="Only return log lines newer than this id, for incremental polling"
+    ),
+    current_user: User | None = Depends(get_current_admin_user),
+):
+    """Get recent live server logs from the in-memory ring buffer (admin only).
+
+    Logs are otherwise stdout/stderr-only; this lets the Settings -> System
+    page show what the backend is doing right now (e.g. a failed import that
+    otherwise returns a silent zero-imported result).
+    """
+    from app.utils.log_buffer import log_buffer_handler
+
+    entries = log_buffer_handler.get_recent(limit=limit, after_id=after_id)
+    return {"logs": entries}
+

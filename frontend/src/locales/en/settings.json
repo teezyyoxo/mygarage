@@ -13,6 +13,19 @@
     "title": "System Configuration",
     "description": "Configure core system settings like timezone and debug mode."
   },
+  "systemLogs": {
+    "title": "Live Server Logs",
+    "description": "Recent backend log output, useful for quickly diagnosing issues like a failed or silent import.",
+    "empty": "No log activity yet.",
+    "paused": "Paused",
+    "resume": "Resume",
+    "pause": "Pause",
+    "clear": "Clear",
+    "autoScroll": "Auto-scroll",
+    "levelFilter": "Level",
+    "allLevels": "All levels",
+    "loadError": "Couldn't load server logs."
+  },
   "timezone": {
     "label": "Timezone",
     "description": "Affects log timestamps, scheduled tasks, and date displays throughout the application."

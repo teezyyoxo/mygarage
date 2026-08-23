@@ -176,6 +176,15 @@ async def import_vehicle_pdf(
         logger.warning("PDF OCR failed for vin=%s: %s", sanitize_for_log(vin), exc)
         extracted_text = ""
 
+    if not extracted_text.strip():
+        logger.warning(
+            "PDF import for vin=%s produced no extractable text (file=%s, %d bytes); "
+            "the document was still saved as an attachment, but no note was created",
+            sanitize_for_log(vin),
+            sanitize_for_log(filename),
+            len(pdf_bytes),
+        )
+
     db.add(
         Document(
             vin=vin,
@@ -204,7 +213,15 @@ async def import_vehicle_pdf(
     await db.commit()
     return {
         "document": {"success_count": 1, "error_count": 0, "skipped_count": 0},
-        "notes": {"success_count": note_count, "error_count": 0, "skipped_count": 0},
+        "notes": {
+            "success_count": note_count,
+            "error_count": 0,
+            # No note is created when OCR finds no text (e.g. a low-quality
+            # scan) — surfaced as skipped, not a silent zero, so the import
+            # summary shows something happened. Check Settings -> System ->
+            # Live Server Logs for the OCR failure reason.
+            "skipped_count": 0 if note_count else 1,
+        },
         "ocr_text_extracted": bool(extracted_text.strip()),
     }
 

@@ -13,7 +13,7 @@ import VendorSearch from './VendorSearch'
 import LineItemEditor from './LineItemEditor'
 import ServiceVisitAttachmentUpload from './ServiceVisitAttachmentUpload'
 import ServiceVisitAttachmentList from './ServiceVisitAttachmentList'
-import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/useServiceVisits'
+import { useCreateServiceVisit, useUpdateServiceVisit, useServiceCategories } from '../hooks/queries/useServiceVisits'
 import { useSupplies } from '../hooks/queries/useSupplies'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useLatestMileage } from '../hooks/useLatestMileage'
@@ -87,6 +87,9 @@ export default function ServiceVisitForm({
   const { currencyCode, locale } = useCurrencyPreference()
   const createMutation = useCreateServiceVisit(vin)
   const updateMutation = useUpdateServiceVisit(vin)
+  const { data: fleetCategories } = useServiceCategories()
+  // Falls back to the built-in defaults while the fleet-wide list loads.
+  const availableCategories = fleetCategories ?? (SERVICE_CATEGORIES as unknown as string[])
   const isMotorized = !vehicleType || !NON_MOTORIZED_TYPES.includes(vehicleType)
   const { data: currentMileage } = useLatestMileage(vin)
   // Task 14 — which usage dimension(s) this vehicle tracks, driving the
@@ -610,7 +613,7 @@ export default function ServiceVisitForm({
                     onChange={handleLineItemChange}
                     onRemove={handleRemoveLineItem}
                     disabled={submitting}
-                    categories={SERVICE_CATEGORIES as unknown as string[]}
+                    categories={availableCategories}
                     isNewItem={!item.id}
                     currentMileage={currentMileage}
                   />

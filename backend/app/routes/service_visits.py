@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.schemas.service_visit import (
+    ServiceCategoryListResponse,
     ServiceLineItemCreate,
     ServiceLineItemResponse,
     ServiceVisitCreate,
@@ -22,6 +23,28 @@ from app.services.supply_service import SupplyService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/vehicles/{vin}/service-visits", tags=["Service Visits"])
+
+# Not nested under a vin — categories are suggested fleet-wide, not per-vehicle.
+categories_router = APIRouter(prefix="/api/service-categories", tags=["Service Visits"])
+
+
+@categories_router.get("", response_model=ServiceCategoryListResponse)
+async def list_service_categories(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """
+    Get the built-in default categories plus every custom category any vehicle
+    in the fleet has used, so the category field can offer the same
+    type-your-own-or-pick-one experience as the line-item description field.
+
+    **Returns:**
+    - Deduplicated list of category names: defaults first (in their usual
+      order), then custom fleet-used values sorted alphabetically.
+    """
+    service = ServiceVisitService(db)
+    categories = await service.list_service_categories()
+    return ServiceCategoryListResponse(categories=categories)
 
 
 @router.get("", response_model=ServiceVisitListResponse)

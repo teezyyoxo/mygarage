@@ -20,6 +20,7 @@ from app.routes.photos import router as photos_router
 from app.routes.recall import recalls_router
 from app.routes.reminders import router as reminders_router
 from app.routes.reports import router as reports_router
+from app.routes.service_visits import categories_router as service_categories_router
 from app.routes.service_visits import router as service_visits_router
 from app.routes.settings import router as settings_router
 from app.routes.shop_discovery import router as shop_discovery_router
@@ -71,6 +72,7 @@ __all__ = [
     "vendors_router",
     "reminders_router",
     "service_visits_router",
+    "service_categories_router",
     "supplies_router",
     "vehicle_supplies_router",
     "vehicle_hub_router",

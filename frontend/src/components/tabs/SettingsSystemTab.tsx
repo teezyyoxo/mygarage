@@ -11,6 +11,7 @@ import { SUPPORTED_LANGUAGES, SUPPORTED_CURRENCIES, languageToLocale } from '@/c
 import OIDCModal from '@/components/modals/OIDCModal'
 import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
 import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
+import SystemLogsPanel from '@/components/SystemLogsPanel'
 import { Select, Toggle } from '../ui'
 
 type RawSetting = {
@@ -775,6 +776,9 @@ export default function SettingsSystemTab() {
           </div>
         )}
       </div>
+
+      {/* Live Server Logs Card */}
+      {isAdmin && <SystemLogsPanel />}
 
       {/* Mobile Experience Card */}
       {isAuthenticated && (

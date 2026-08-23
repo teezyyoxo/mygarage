@@ -10854,7 +10854,7 @@ export interface components {
              * Category
              * @description Service category
              */
-            category?: ("Maintenance" | "Inspection" | "Collision" | "Upgrades" | "Detailing") | null;
+            category?: string | null;
             /**
              * Cost
              * @description Cost for this line item
@@ -10925,7 +10925,7 @@ export interface components {
              * Category
              * @description Service category
              */
-            category?: ("Maintenance" | "Inspection" | "Collision" | "Upgrades" | "Detailing") | null;
+            category?: string | null;
             /**
              * Cost
              * @description Cost for this line item
@@ -10995,7 +10995,7 @@ export interface components {
          */
         ServiceLineItemUpdate: {
             /** Category */
-            category?: ("Maintenance" | "Inspection" | "Collision" | "Upgrades" | "Detailing") | null;
+            category?: string | null;
             /** Cost */
             cost?: number | string | null;
             /** Description */
@@ -11111,7 +11111,7 @@ export interface components {
              * Service Category
              * @description Primary service category
              */
-            service_category?: ("Maintenance" | "Inspection" | "Collision" | "Upgrades" | "Detailing") | null;
+            service_category?: string | null;
             /**
              * Shop Supplies
              * @description Shop supplies/environmental fee
@@ -11262,7 +11262,7 @@ export interface components {
              * Service Category
              * @description Primary service category
              */
-            service_category?: ("Maintenance" | "Inspection" | "Collision" | "Upgrades" | "Detailing") | null;
+            service_category?: string | null;
             /**
              * Shop Supplies
              * @description Shop supplies/environmental fee
@@ -11339,7 +11339,7 @@ export interface components {
              * Service Category
              * @description Primary service category
              */
-            service_category?: ("Maintenance" | "Inspection" | "Collision" | "Upgrades" | "Detailing") | null;
+            service_category?: string | null;
             /**
              * Shop Supplies
              * @description Shop supplies/environmental fee
