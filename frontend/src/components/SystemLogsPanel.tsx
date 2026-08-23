@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Terminal, Pause, Play, Trash2 } from 'lucide-react'
 import api from '@/services/api'
-import { Select } from '../ui'
+import { Select } from './ui'
 
 interface LogEntry {
   id: number
