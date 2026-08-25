@@ -5,7 +5,7 @@
 
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.2.0"
+SCRIPT_VERSION="1.2.1"
 
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
@@ -83,6 +83,11 @@ EOF
 changelog() {
   cat <<'EOF'
 Image Shipper changelog
+
+1.2.1 — 2026-08-25
+  • MyGarage deployments now query the live public /api/version endpoint from
+    the recreated container, verify its build ID against the loaded image, and
+    print the API-reported version and commit in the completion summary.
 
 1.2.0 — 2026-08-25
   • Added --deploy TARGET as a streamlined build, ship, Compose recreate, and
@@ -693,6 +698,8 @@ step 'Load image on destination'
 remote_archive_q=$(shell_quote "$remote_archive")
 "${ssh_cmd[@]}" "$target" "gzip -dc $remote_archive_q | $remote_engine_q load"
 remote_image_id=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{.Id}}' $(shell_quote "$image")")
+image_build_commit=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' $(shell_quote "$image")" 2>/dev/null || true)
+[[ "$image_build_commit" == '<no value>' ]] && image_build_commit=''
 ok "Loaded $image"
 field 'Local image ID' "$local_image_id"
 field 'Remote image ID' "$remote_image_id"
@@ -701,11 +708,9 @@ if [[ "$deploy_mode" == compose ]]; then
   step 'Recreate destination Compose service'
   compose_dir_q=$(shell_quote "$compose_dir")
   compose_service_q=$(shell_quote "$compose_service")
-  remote_build_commit=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' $(shell_quote "$image")" 2>/dev/null || true)
-  [[ "$remote_build_commit" == '<no value>' ]] && remote_build_commit=''
-  if [[ -n "$remote_build_commit" ]]; then
-    remote_compose="BUILD_COMMIT=$(shell_quote "$remote_build_commit") $remote_engine_q compose"
-    field 'Compose build ID' "$remote_build_commit"
+  if [[ -n "$image_build_commit" ]]; then
+    remote_compose="BUILD_COMMIT=$(shell_quote "$image_build_commit") $remote_engine_q compose"
+    field 'Compose build ID' "$image_build_commit"
   else
     remote_compose="$remote_engine_q compose"
   fi
@@ -768,6 +773,26 @@ else
   warn 'Image was loaded successfully; --no-start suppressed container startup.'
 fi
 
+live_version=''
+live_build_commit=''
+if [[ "$image" == *mygarage* && "$deploy_mode" != none ]]; then
+  step 'Verify live MyGarage API identity'
+  if [[ "$deploy_mode" == compose ]]; then
+    identity_container=$compose_container_id
+  else
+    identity_container=$container_name
+  fi
+  identity_container_q=$(shell_quote "$identity_container")
+  runtime_json=$("${ssh_cmd[@]}" "$target" "for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do $remote_engine_q exec $identity_container_q curl -fsS --max-time 8 http://127.0.0.1:8686/api/version && exit 0; sleep 2; done; exit 1") || die 'The recreated MyGarage container did not return its runtime identity API.'
+  live_version=$(printf '%s' "$runtime_json" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  live_build_commit=$(printf '%s' "$runtime_json" | sed -n 's/.*"build_commit"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  [[ -n "$live_version" && -n "$live_build_commit" ]] || die "MyGarage returned an invalid runtime identity payload: $runtime_json"
+  if [[ -n "$image_build_commit" && "$live_build_commit" != "$image_build_commit" ]]; then
+    die "MyGarage API build $live_build_commit does not match loaded image build $image_build_commit."
+  fi
+  ok "MyGarage API reports v$live_version · $live_build_commit"
+fi
+
 if [[ "$deploy_mode" != none && "$health_url" != '-' ]]; then
   step 'Confirm HTTP health with curl'
   command -v curl >/dev/null 2>&1 || die 'curl is required for HTTP verification.'
@@ -795,5 +820,9 @@ if [[ "$deploy_mode" == compose ]]; then
   field 'Compose service' "$compose_service"
 elif [[ "$deploy_mode" == standalone ]]; then
   field 'Container' "$container_name"
+fi
+if [[ -n "$live_version" ]]; then
+  field 'MyGarage version' "$live_version"
+  field 'MyGarage build' "$live_build_commit"
 fi
 printf '\n%s%s✓ Image shipment completed successfully.%s\n' "$C_GREEN" "$C_BOLD" "$C_RESET"

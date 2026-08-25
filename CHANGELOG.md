@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Remote MyGarage deployments now finish by querying the recreated
+  container's public version API, verifying its build/commit ID against the
+  loaded image, and printing both the live version and build in the summary.
 - Scanned maintenance PDFs now use contrast normalization, sharpening,
   layout-preserving Tesseract word data, and a confidence threshold that drops
   low-confidence invented tokens before parsing.
