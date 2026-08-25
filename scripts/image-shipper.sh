@@ -48,9 +48,9 @@ Information:
   -h, --help                Show this help
 
 Examples:
-  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.4
+  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.5
 
-  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.4 \
+  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.5 \
     --build-option=--build-arg --build-option=BUILD_COMMIT=abc1234
 
   scripts/image-shipper.sh --image myapp:latest --host server.example.test \

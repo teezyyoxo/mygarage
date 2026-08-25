@@ -5,10 +5,13 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.1.4] - 2026-08-23
+## [3.1.5] - 2026-08-24
 
 ### Fixed
 
+- Commit-only image builds now retain the cached frontend dependency install
+  and runtime OS packages instead of rebuilding both expensive layers whenever
+  the embedded revision changes.
 - Cross-platform image builds now compile the architecture-neutral frontend on
   the builder's native platform instead of running Bun/Vite/Rolldown through
   QEMU. Together with Bun's low-memory mode, this prevents transformation from
@@ -40,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the public `GET /api/version` runtime identity endpoint. It reports the
+  package version and image build commit without authentication so operators
+  can verify an exact deployment with `curl`.
 - Added `scripts/image-shipper.sh`, a reusable interactive Docker/Podman image
   deployment utility. It can build or select a local image, save and compress
   it, authenticate through normal SSH/SCP prompts, transfer and load it on a
@@ -51,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Image Shipper now accepts repeatable local build options and diagnoses
   memory-exhaustion failures with the engine's available-memory total and a
   retained build log, instead of ending at an unexplained SIGKILL.
+
+## [3.1.4] - 2026-08-23
+
+### Added
 
 - Service visit category is now a fleet-suggested field like the line-item
   description: pick a built-in default (Maintenance, Inspection, Collision,

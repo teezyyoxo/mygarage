@@ -274,6 +274,17 @@ async def health_check():
         "status": "healthy",
         "app": settings.app_name,
         "version": settings.app_version,
+        "build_commit": settings.build_commit,
+    }
+
+
+@app.get("/api/version")
+async def version_info():
+    """Public runtime identity for deployment and support diagnostics."""
+    return {
+        "app": settings.app_name,
+        "version": settings.app_version,
+        "build_commit": settings.build_commit,
     }
 
 
@@ -298,6 +309,7 @@ async def api_health_check(request: Request):
         "status": "healthy",
         "app": settings.app_name,
         "version": settings.app_version,
+        "build_commit": settings.build_commit,
         "authenticator_detected": authenticator_detected,
     }
 

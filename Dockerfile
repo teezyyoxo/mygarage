@@ -23,9 +23,6 @@ ARG BUILD_COMMIT
 # backend builder and final stage intentionally remain on TARGETPLATFORM.
 FROM --platform=${BUILDPLATFORM} oven/bun:${BUN_VERSION}-slim AS frontend-builder
 
-ARG BUILD_COMMIT
-ENV BUILD_COMMIT=${BUILD_COMMIT}
-
 # Set working directory
 WORKDIR /app/frontend
 
@@ -38,6 +35,11 @@ RUN bun install --frozen-lockfile
 
 # Copy frontend source
 COPY frontend/ ./
+
+# Keep dynamic revision metadata after dependency installation so a new commit
+# ID does not invalidate the 422-package Bun layer.
+ARG BUILD_COMMIT
+ENV BUILD_COMMIT=${BUILD_COMMIT}
 
 # Build production bundle. --smol makes Bun collect its JavaScript heap more
 # aggressively inside memory-constrained Docker/Podman builders. The emitted
@@ -84,7 +86,6 @@ LABEL org.opencontainers.image.title="MyGarage"
 LABEL org.opencontainers.image.url="https://www.homelabforge.io"
 LABEL org.opencontainers.image.description="Vehicle and garage management platform with maintenance tracking"
 LABEL org.opencontainers.image.frontend.builder="bun-${BUN_VERSION}"
-LABEL org.opencontainers.image.revision="${BUILD_COMMIT}"
 
 WORKDIR /app
 
@@ -116,6 +117,11 @@ COPY --from=frontend-builder /app/frontend/dist ./static
 RUN chown -R mygarage:mygarage /app /data && \
     chmod -R 755 /app && \
     chmod -R 755 /data
+
+# Apply dynamic revision metadata only after stable OS and application layers,
+# allowing commit-only rebuilds to reuse those expensive caches.
+ENV BUILD_COMMIT=${BUILD_COMMIT}
+LABEL org.opencontainers.image.revision="${BUILD_COMMIT}"
 
 # Switch to non-root user
 USER mygarage

@@ -24,6 +24,11 @@ def get_version() -> str:
         return "0.0.0-dev"
 
 
+def get_build_commit() -> str:
+    """Return the source revision embedded in the runtime image."""
+    return os.getenv("BUILD_COMMIT", "dev").strip() or "dev"
+
+
 # Default HTTP bind port. Single source of truth for both the field default and
 # the service-link guard below (issue #102).
 _DEFAULT_PORT = 8686
@@ -35,6 +40,7 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "MyGarage"
     app_version: str = Field(default_factory=get_version)
+    build_commit: str = Field(default_factory=get_build_commit)
     debug: bool = False
     timezone: str = "UTC"  # User-editable via Settings UI
 
