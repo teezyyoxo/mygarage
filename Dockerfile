@@ -89,6 +89,7 @@ RUN apt-get update && \
         curl \
         libmagic1t64 \
         file \
+        tesseract-ocr \
         postgresql-client && \
     rm -rf /var/lib/apt/lists/* && \
     useradd --uid 1000 --user-group --system --create-home --no-log-init mygarage && \

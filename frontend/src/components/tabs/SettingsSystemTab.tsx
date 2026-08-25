@@ -777,8 +777,8 @@ export default function SettingsSystemTab() {
         )}
       </div>
 
-      {/* Live Server Logs Card */}
-      {isAdmin && <SystemLogsPanel />}
+      {/* Everyone can discover the card, but only admins mount the live feed. */}
+      <SystemLogsPanel locked={!isAdmin} />
 
       {/* Mobile Experience Card */}
       {isAuthenticated && (

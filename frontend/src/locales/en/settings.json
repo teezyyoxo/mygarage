@@ -14,8 +14,9 @@
     "description": "Configure core system settings like timezone and debug mode."
   },
   "systemLogs": {
-    "title": "Live Server Logs",
-    "description": "Recent backend log output, useful for quickly diagnosing issues like a failed or silent import.",
+    "title": "System Logs",
+    "description": "Read-only view of the latest 1,000 backend log lines, updated automatically.",
+    "adminOnly": "Admin only",
     "empty": "No log activity yet.",
     "paused": "Paused",
     "resume": "Resume",

@@ -7,7 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.1.4] - 2026-08-23
 
+### Fixed
+
+- Vehicle-level PDF import now explicitly imports a maintenance/service record
+  for any vehicle, creates a service visit from recognized invoice fields, and
+  attaches the original PDF to that visit. Exact duplicate PDFs are skipped
+  with a visible reason instead of an unexplained aggregate count.
+- Restored OCR for scanned maintenance PDFs in production by installing the
+  Tesseract executable that the existing Python OCR integration requires.
+- Short PDFs with valid embedded text no longer lose that text when the OCR
+  fallback produces no output.
+- The Settings → System **System Logs** card is now visible to every user, but
+  non-admin and unauthenticated sessions see a fully blurred preview with an
+  **Admin only** label. The log API separately requires a real authenticated
+  admin, including when application authentication is disabled.
+
+### Changed
+
+- Renamed the vehicle action to **Import Records** and added explicit guidance:
+  MyGarage JSON exports restore supported vehicle data, while PDFs create one
+  maintenance/service visit.
+- Added a terminal-style upload and processing console with progress, readable
+  extraction/parsing stages, and the exact reason an import completed, failed,
+  or was skipped.
+- Simplified **System Logs** to a read-only, automatically updated view of the
+  latest 1,000 backend lines for admins.
+
 ### Added
+
+- Added `scripts/image-shipper.sh`, a reusable interactive Docker/Podman image
+  deployment utility. It can build or select a local image, save and compress
+  it, authenticate through normal SSH/SCP prompts, transfer and load it on a
+  remote host, replace/start a configurable container, compare image IDs,
+  print recent container logs, and retry a `curl` health check. Every host,
+  path, image, engine, container name, run option, and URL is prompted or
+  accepted as a command argument; no deployment target is hard-coded. The
+  script includes its own `--changelog` and formatted `--help` output.
 
 - Service visit category is now a fleet-suggested field like the line-item
   description: pick a built-in default (Maintenance, Inspection, Collision,
@@ -15,13 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vehicle becomes a suggestion for every vehicle in the fleet. The
   `service_visits.service_category` / `service_line_items.category` columns no
   longer enforce a fixed list at the database level.
-- Added a live server log viewer to Settings → System (admin only), backed by
-  an in-memory ring buffer of recent backend log lines, with level filtering,
-  pause/resume, and clear — useful for diagnosing a silent/zero-result import
-  without needing container log access.
-- PDF vehicle imports that produce no extractable OCR text now log a clear
-  warning (visible in the new live log viewer) and report the note as skipped
-  rather than a silent zero-result success.
+- Added a server log viewer to Settings → System, backed by an in-memory ring
+  buffer so deployment logs can be diagnosed without container access.
 
 ## [3.1.3] - 2026-08-20
 

@@ -87,6 +87,13 @@ type ImportSectionResult = {
   error_count: number
 }
 
+type ImportOperationLog = {
+  level: 'info' | 'success' | 'warning' | 'error'
+  message: string
+}
+
+type ImportOperationStatus = 'uploading' | 'processing' | 'complete' | 'skipped' | 'error'
+
 export type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | 'torqueSource' | null
 export type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'fuel' | 'tracking' | 'financial' | 'livelink'
 export type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'hours' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'suppliesused' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts' | 'trips'
@@ -106,6 +113,11 @@ export default function VehicleDetail() {
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [showImportWarning, setShowImportWarning] = useState(false)
+  const [showImportConsole, setShowImportConsole] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
+  const [importStatus, setImportStatus] = useState<ImportOperationStatus>('uploading')
+  const [importFileName, setImportFileName] = useState('')
+  const [importLogs, setImportLogs] = useState<ImportOperationLog[]>([])
   const [fromCache, setFromCache] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [hasLiveLinkDevice, setHasLiveLinkDevice] = useState(false)
@@ -318,18 +330,40 @@ export default function VehicleDetail() {
       return
     }
 
+    const isPdf = file.name.toLowerCase().endsWith('.pdf')
     setImporting(true)
+    setImportFileName(file.name)
+    setImportProgress(2)
+    setImportStatus('uploading')
+    setImportLogs([
+      { level: 'info', message: t('detail.importConsole.fileSelected', { name: file.name }) },
+      { level: 'info', message: isPdf ? t('detail.importConsole.pdfMode') : t('detail.importConsole.jsonMode') },
+      { level: 'info', message: t('detail.importConsole.uploadStarting') },
+    ])
+    setShowImportConsole(true)
     try {
       const formData = new FormData()
       formData.append('file', file)
 
-      const isPdf = file.name.toLowerCase().endsWith('.pdf')
       const response = await api.post(`/import/vehicles/${vin}/${isPdf ? 'pdf' : 'json'}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        onUploadProgress: (progressEvent) => {
+          if (!progressEvent.total) return
+          const percent = Math.min(90, Math.max(2, Math.round((progressEvent.loaded / progressEvent.total) * 90)))
+          setImportProgress(percent)
+          if (progressEvent.loaded >= progressEvent.total) {
+            setImportStatus('processing')
+          }
+        },
       })
       const result = response.data
+      setImportProgress(100)
+
+      if (Array.isArray(result.operation_logs)) {
+        setImportLogs((current) => [...current, ...result.operation_logs])
+      }
 
       // Show results
       const sections: Array<[string, ImportSectionResult | undefined]> = [
@@ -352,15 +386,35 @@ export default function VehicleDetail() {
         }
       }
 
-      toast.success(t('detail.importSuccess'), {
-        description: message
-      })
+      const didSkip = result.status === 'skipped'
+      setImportStatus(didSkip ? 'skipped' : 'complete')
+      if (didSkip) {
+        toast.warning(t('detail.importConsole.skippedTitle'), { description: result.reason })
+      } else {
+        toast.success(t('detail.importSuccess'), { description: message })
+      }
+
+      if (!Array.isArray(result.operation_logs)) {
+        setImportLogs((current) => [
+          ...current,
+          { level: 'success', message: t('detail.importConsole.uploadReceived') },
+          ...sections.flatMap(([label, section]) => section ? [{
+            level: section.error_count ? 'warning' as const : 'success' as const,
+            message: `${label}: ${section.success_count} imported, ${section.skipped_count} skipped, ${section.error_count} failed.`,
+          }] : []),
+          { level: 'success', message: t('detail.importConsole.complete') },
+        ])
+      }
 
       // Reload the vehicle data
       await loadVehicle()
     } catch (err) {
+      const reason = getActionErrorMessage(err, t('detail.importAction'))
+      setImportProgress(100)
+      setImportStatus('error')
+      setImportLogs((current) => [...current, { level: 'error', message: reason }])
       toast.error(t('detail.importError'), {
-        description: getActionErrorMessage(err, t('detail.importAction'))
+        description: reason
       })
     } finally {
       setImporting(false)
@@ -641,12 +695,57 @@ export default function VehicleDetail() {
                 <div>
                   <h2 id="vehicle-import-warning-title" className="text-xl font-semibold text-garage-text">{t('detail.importWarningTitle')}</h2>
                   <p className="mt-3 text-sm text-garage-text-muted">{t('detail.importWarning')}</p>
+                  <div className="mt-4 grid gap-3 text-sm">
+                    <div className="rounded-lg border border-garage-border bg-garage-bg p-3">
+                      <strong className="text-garage-text">{t('detail.importJsonTitle')}</strong>
+                      <p className="mt-1 text-garage-text-muted">{t('detail.importJsonDescription')}</p>
+                    </div>
+                    <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
+                      <strong className="text-garage-text">{t('detail.importPdfTitle')}</strong>
+                      <p className="mt-1 text-garage-text-muted">{t('detail.importPdfDescription')}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="mt-6 flex justify-end gap-3">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowImportWarning(false)}>{t('detail.importCancel')}</button>
                 <button type="button" className="btn btn-primary" onClick={() => { setShowImportWarning(false); fileInputRef.current?.click() }}>{t('detail.importChooseFile')}</button>
               </div>
+            </section>
+          </div>
+        )}
+
+        {showImportConsole && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="presentation">
+            <section className="w-full max-w-2xl overflow-hidden rounded-xl border border-primary/45 bg-[#050b10] shadow-[0_30px_100px_rgba(0,0,0,.75),0_0_45px_rgba(34,211,238,.12)]" role="dialog" aria-modal="true" aria-labelledby="vehicle-import-console-title">
+              <header className="flex items-center gap-3 border-b border-white/10 bg-[#09131b] px-4 py-3 font-mono text-xs text-slate-400">
+                <span className="flex gap-1.5" aria-hidden="true"><i className="h-2.5 w-2.5 rounded-full bg-red-400" /><i className="h-2.5 w-2.5 rounded-full bg-amber-300" /><i className="h-2.5 w-2.5 rounded-full bg-emerald-400" /></span>
+                <span className="min-w-0 flex-1 truncate">mygarage / import / {importFileName}</span>
+                <span className={`font-bold uppercase tracking-widest ${importStatus === 'error' ? 'text-red-400' : importStatus === 'skipped' ? 'text-amber-300' : importStatus === 'complete' ? 'text-emerald-400' : 'text-cyan-300'}`}>{t(`detail.importConsole.status.${importStatus}`)}</span>
+              </header>
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center gap-3">
+                  <span className={`grid h-10 w-10 place-items-center rounded-lg border font-mono text-lg ${importStatus === 'error' ? 'border-red-400/40 bg-red-400/10 text-red-300' : importStatus === 'skipped' ? 'border-amber-300/40 bg-amber-300/10 text-amber-200' : importStatus === 'complete' ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' : 'animate-pulse border-cyan-300/40 bg-cyan-300/10 text-cyan-200'}`} aria-hidden="true">{importStatus === 'complete' ? '✓' : importStatus === 'skipped' ? '!' : importStatus === 'error' ? '×' : '›'}</span>
+                  <div>
+                    <p className="font-mono text-[10px] font-bold uppercase tracking-[.18em] text-cyan-300">{t('detail.importConsole.eyebrow')}</p>
+                    <h2 id="vehicle-import-console-title" className="mt-1 text-lg font-semibold text-white">{t('detail.importConsole.title')}</h2>
+                  </div>
+                </div>
+                <div className="mt-5 h-64 overflow-y-auto rounded-lg border border-white/10 bg-black/45 p-4 font-mono text-xs leading-6" aria-live="polite">
+                  {importLogs.map((entry, index) => (
+                    <div key={`${index}-${entry.message}`} className="grid grid-cols-[16px_1fr] gap-2">
+                      <span className={entry.level === 'error' ? 'text-red-400' : entry.level === 'warning' ? 'text-amber-300' : entry.level === 'success' ? 'text-emerald-400' : 'text-cyan-300'}>{entry.level === 'error' ? '×' : entry.level === 'warning' ? '!' : entry.level === 'success' ? '✓' : '›'}</span>
+                      <span className="whitespace-pre-wrap break-words text-slate-300">{entry.message}</span>
+                    </div>
+                  ))}
+                  {(importStatus === 'uploading' || importStatus === 'processing') && <span className="ml-6 mt-1 inline-block h-4 w-2 animate-pulse bg-cyan-300" aria-hidden="true" />}
+                </div>
+                <div className="mt-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-slate-400"><span>{importStatus === 'uploading' ? t('detail.importConsole.uploading') : importStatus === 'processing' ? t('detail.importConsole.processing') : t('detail.importConsole.finished')}</span><strong className="text-cyan-300">{importProgress}%</strong></div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full border border-white/10 bg-black"><i className={`block h-full rounded-full transition-[width] duration-300 ${importStatus === 'error' ? 'bg-red-400' : importStatus === 'skipped' ? 'bg-amber-300' : 'bg-gradient-to-r from-violet-500 to-cyan-300'}`} style={{ width: `${importProgress}%` }} /></div>
+              </div>
+              <footer className="flex justify-end border-t border-white/10 px-5 py-4">
+                <button type="button" className="btn btn-primary" disabled={importing} onClick={() => setShowImportConsole(false)}>{importing ? t('detail.importConsole.working') : t('detail.importConsole.close')}</button>
+              </footer>
             </section>
           </div>
         )}

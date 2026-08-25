@@ -6,8 +6,12 @@ Tests CSV and JSON import operations for various record types.
 
 from io import BytesIO
 
+import fitz
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+
+from app.models import ServiceVisit
 
 
 @pytest.fixture(autouse=True)
@@ -57,6 +61,61 @@ class TestImportRoutes:
         assert data["success_count"] == 2
         assert data["error_count"] == 0
         assert data["total_processed"] == 2
+
+    async def test_pdf_import_creates_maintenance_visit_and_explains_duplicate(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        """A vehicle PDF is a maintenance-record import, not a generic note import."""
+        document = fitz.open()
+        page = document.new_page()
+        page.insert_text(
+            (72, 72),
+            "Example Auto Service LLC\n"
+            "Invoice Number: RO-4821\n"
+            "Invoice Date: 08/21/2026\n"
+            "Odometer: 52,410 mi\n"
+            "Performed engine oil and oil filter change\n"
+            "Grand Total: $189.42",
+        )
+        pdf_bytes = document.tobytes()
+        document.close()
+
+        response = await client.post(
+            f"/api/import/vehicles/{test_vehicle['vin']}/pdf",
+            headers=auth_headers,
+            files={"file": ("service.pdf", BytesIO(pdf_bytes), "application/pdf")},
+        )
+        assert response.status_code == 200
+        result = response.json()
+        assert result["status"] == "complete"
+        assert result["service_records"]["success_count"] == 1
+        assert any(
+            "Created maintenance record" in line["message"]
+            for line in result["operation_logs"]
+        )
+
+        visit = (
+            await db_session.execute(
+                select(ServiceVisit).where(
+                    ServiceVisit.vin == test_vehicle["vin"],
+                    ServiceVisit.external_source == "maintenance_pdf",
+                )
+            )
+        ).scalar_one()
+        assert visit.service_category == "Maintenance"
+        assert visit.date.isoformat() == "2026-08-21"
+
+        duplicate = await client.post(
+            f"/api/import/vehicles/{test_vehicle['vin']}/pdf",
+            headers=auth_headers,
+            files={"file": ("service.pdf", BytesIO(pdf_bytes), "application/pdf")},
+        )
+        assert duplicate.status_code == 200
+        duplicate_result = duplicate.json()
+        assert duplicate_result["status"] == "skipped"
+        assert duplicate_result["reason"] == (
+            "This exact PDF has already been imported as a maintenance record."
+        )
 
     async def test_import_service_csv_missing_date(
         self, client: AsyncClient, auth_headers, test_vehicle

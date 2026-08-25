@@ -301,6 +301,31 @@ class TestSettingsAdminRoutes:
         # Regular users get 403, admin gets 200
         assert response.status_code in [200, 403]
 
+    async def test_system_logs_returns_at_most_1000_read_only_entries(
+        self, client: AsyncClient, auth_headers
+    ):
+        """The Settings card can retrieve the full bounded in-memory tail."""
+        response = await client.get(
+            "/api/settings/system/logs?limit=1000",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        logs = response.json()["logs"]
+        assert isinstance(logs, list)
+        assert len(logs) <= 1000
+
+    async def test_system_logs_remain_locked_when_authentication_is_disabled(
+        self, client: AsyncClient, db_session
+    ):
+        """Auth-disabled access may see Settings, but never backend log data."""
+        await _set_setting(db_session, "auth_mode", "none")
+        try:
+            response = await client.get("/api/settings/system/logs?limit=1000")
+            assert response.status_code == 403
+            assert response.json()["detail"] == "System logs are available to admins only"
+        finally:
+            await _set_setting(db_session, "auth_mode", "local")
+
     async def test_batch_update_requires_admin(self, client: AsyncClient, auth_headers):
         """Test that batch update requires admin role."""
         response = await client.post(

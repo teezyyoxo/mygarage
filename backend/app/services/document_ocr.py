@@ -194,7 +194,10 @@ class DocumentOCRService:
             # If PDF has minimal text, it might be a scanned image
             if len(full_text.strip()) < 100:
                 logger.info("PDF appears to be scanned, attempting OCR")
-                return await self._ocr_pdf(file_path)
+                ocr_text = await self._ocr_pdf(file_path)
+                # A short receipt can contain valid embedded text. Never throw
+                # that text away merely because optional OCR produced nothing.
+                return ocr_text if ocr_text.strip() else full_text
 
             return full_text
 
@@ -220,7 +223,8 @@ class DocumentOCRService:
             # If PDF has minimal text, OCR it
             if len(full_text.strip()) < 100:
                 logger.info("PDF appears to be scanned, attempting OCR")
-                return await self._ocr_pdf_bytes(pdf_bytes)
+                ocr_text = await self._ocr_pdf_bytes(pdf_bytes)
+                return ocr_text if ocr_text.strip() else full_text
 
             return full_text
 

@@ -703,6 +703,11 @@ async def get_system_logs(
     """
     from app.utils.log_buffer import log_buffer_handler
 
+    # Unlike most admin dependencies, auth_mode=none must not turn this
+    # diagnostic endpoint into a public log feed. The frontend still renders a
+    # locked preview card, but only a real authenticated admin may read data.
+    if current_user is None:
+        raise HTTPException(status_code=403, detail="System logs are available to admins only")
+
     entries = log_buffer_handler.get_recent(limit=limit, after_id=after_id)
     return {"logs": entries}
-
