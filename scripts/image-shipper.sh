@@ -5,7 +5,7 @@
 
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.0.1"
+SCRIPT_VERSION="1.1.0"
 
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
@@ -19,7 +19,10 @@ usage() {
 Image Shipper — build or select an OCI image and deploy it over SSH
 
 Usage:
-  scripts/image-shipper.sh [options]
+  scripts/image-shipper.sh [REMOTE_COMPOSE_DIR] [options]
+
+Passing `.` selects Compose deployment in the remote SSH user's current
+directory. Any other positional path selects that remote Compose directory.
 
 Selection/build:
   --image IMAGE             Existing local image reference to ship
@@ -33,10 +36,14 @@ Destination:
   --host HOST               Destination FQDN, hostname, or IP
   --user USER               Destination SSH user
   --port PORT               SSH port (default: 22)
-  --destination PATH        Absolute remote folder receiving the image archive
-  --remote-engine ENGINE    Remote docker or podman command (auto-detected)
+  --destination PATH        Remote archive folder (default: /tmp)
+  --remote-engine ENGINE    Remote docker/podman name or absolute executable
 
 Run/verify:
+  --compose-dir PATH        Recreate a service from this remote Compose project
+  --compose-service NAME    Compose service to recreate after loading the image
+  --compose-restart NAME    Compose service to restart afterward; repeatable
+  --standalone              Run a standalone container instead of Compose
   --container NAME          Remote container name
   --run-option VALUE        One docker/podman run argument; repeat as needed
   --health-url URL          URL checked with curl after startup; '-' skips HTTP
@@ -49,6 +56,10 @@ Information:
 
 Examples:
   scripts/image-shipper.sh --build-context . --tag mygarage:3.1.5
+
+  scripts/image-shipper.sh . --image vehicle-hub_mygarage:latest \
+    --host deskmini --user montel --compose-service mygarage \
+    --compose-restart vehicle-hub-gateway
 
   scripts/image-shipper.sh --build-context . --tag mygarage:3.1.5 \
     --build-option=--build-arg --build-option=BUILD_COMMIT=abc1234
@@ -69,6 +80,21 @@ EOF
 changelog() {
   cat <<'EOF'
 Image Shipper changelog
+
+1.1.0 — 2026-08-25
+  • Added remote Compose deployment: after loading an image, the shipper can
+    align the service's configured image tag, force-recreate that service,
+    restart optional dependent services, and verify the running image ID.
+  • A positional remote directory such as `.` selects Compose mode, and /tmp
+    is now the default remote archive destination.
+  • Fixed empty build/run option arrays crashing under macOS Bash 3.2 with
+    nounset enabled.
+
+1.0.2 — 2026-08-25
+  • Fixed remote Docker/Podman discovery when non-interactive SSH sessions do
+    not inherit the PATH used by the destination user's interactive shell.
+  • Added Linux, Homebrew, Docker Desktop, and per-user CLI locations while
+    preserving the resolved absolute executable for every remote operation.
 
 1.0.1 — 2026-08-24
   • Added repeatable --build-option arguments for build args, platform flags,
@@ -126,6 +152,56 @@ confirm() {
 shell_quote() {
   local value=$1
   printf "'%s'" "${value//\'/\'\\\'\'}"
+}
+
+resolve_remote_engine() {
+  local requested=${1:-} requested_q probe probe_q
+  requested_q=$(shell_quote "$requested")
+  probe='requested=$1
+PATH="${HOME:-}/.docker/bin:${HOME:-}/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+export PATH
+
+resolve_named_engine() {
+  engine_name=$1
+  resolved=$(command -v "$engine_name" 2>/dev/null || true)
+  if [ -n "$resolved" ] && [ -x "$resolved" ]; then
+    printf "%s\n" "$resolved"
+    return 0
+  fi
+
+  for candidate in \
+    "${HOME:-}/.docker/bin/$engine_name" \
+    "${HOME:-}/.local/bin/$engine_name" \
+    "/usr/local/bin/$engine_name" \
+    "/opt/homebrew/bin/$engine_name" \
+    "/usr/bin/$engine_name" \
+    "/Applications/Docker.app/Contents/Resources/bin/$engine_name"
+  do
+    if [ -x "$candidate" ]; then
+      printf "%s\n" "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [ -n "$requested" ]; then
+  case "$requested" in
+    /*)
+      [ -x "$requested" ] || exit 127
+      printf "%s\n" "$requested"
+      ;;
+    docker|podman)
+      resolve_named_engine "$requested" || exit 127
+      ;;
+    *) exit 126 ;;
+  esac
+else
+  resolve_named_engine docker || resolve_named_engine podman || exit 127
+fi'
+  probe_q=$(shell_quote "$probe")
+
+  "${ssh_cmd[@]}" "$target" "sh -c $probe_q sh $requested_q"
 }
 
 human_bytes() {
@@ -212,9 +288,9 @@ select_existing_image() {
 
 local_engine=''; remote_engine=''; image=''; build_context=''; dockerfile=''; tag=''
 ssh_host=''; ssh_user=''; ssh_port='22'; remote_destination=''; container_name=''
-health_url=''; start_container=1; assume_yes=0
-declare -a build_options run_options
-build_options=(); run_options=()
+health_url=''; deploy_mode=''; compose_dir=''; compose_service=''; start_container=1; assume_yes=0
+declare -a build_options run_options compose_restart_services
+build_options=(); run_options=(); compose_restart_services=()
 
 while (($#)); do
   case "$1" in
@@ -240,23 +316,34 @@ while (($#)); do
     --port=*) ssh_port=${1#*=}; shift ;;
     --destination) remote_destination=${2:?}; shift 2 ;;
     --destination=*) remote_destination=${1#*=}; shift ;;
-    --container) container_name=${2:?}; shift 2 ;;
-    --container=*) container_name=${1#*=}; shift ;;
+    --compose-dir) compose_dir=${2:?}; deploy_mode=compose; shift 2 ;;
+    --compose-dir=*) compose_dir=${1#*=}; deploy_mode=compose; shift ;;
+    --compose-service) compose_service=${2:?}; deploy_mode=compose; shift 2 ;;
+    --compose-service=*) compose_service=${1#*=}; deploy_mode=compose; shift ;;
+    --compose-restart) compose_restart_services+=("${2:?}"); deploy_mode=compose; shift 2 ;;
+    --compose-restart=*) compose_restart_services+=("${1#*=}"); deploy_mode=compose; shift ;;
+    --standalone) deploy_mode=standalone; shift ;;
+    --container) container_name=${2:?}; deploy_mode=standalone; shift 2 ;;
+    --container=*) container_name=${1#*=}; deploy_mode=standalone; shift ;;
     --health-url) health_url=${2:?}; shift 2 ;;
     --health-url=*) health_url=${1#*=}; shift ;;
-    --run-option) run_options+=("${2:?}"); shift 2 ;;
-    --run-option=*) run_options+=("${1#*=}"); shift ;;
-    --no-start) start_container=0; shift ;;
+    --run-option) run_options+=("${2:?}"); deploy_mode=standalone; shift 2 ;;
+    --run-option=*) run_options+=("${1#*=}"); deploy_mode=standalone; shift ;;
+    --no-start) start_container=0; deploy_mode=none; shift ;;
     --yes) assume_yes=1; shift ;;
     --changelog) changelog; exit 0 ;;
     -h|--help) usage; exit 0 ;;
-    *) die "Unknown argument: $1 (use --help)." ;;
+    -*) die "Unknown argument: $1 (use --help)." ;;
+    *)
+      [[ -z "$compose_dir" ]] || die 'Only one positional remote Compose directory may be supplied.'
+      compose_dir=$1; deploy_mode=compose; shift
+      ;;
   esac
 done
 
 [[ "$ssh_port" =~ ^[0-9]+$ ]] || die 'SSH port must be numeric.'
 [[ -z "$local_engine" || "$local_engine" == docker || "$local_engine" == podman ]] || die 'Local engine must be docker or podman.'
-[[ -z "$remote_engine" || "$remote_engine" == docker || "$remote_engine" == podman ]] || die 'Remote engine must be docker or podman.'
+[[ -z "$remote_engine" || "$remote_engine" == docker || "$remote_engine" == podman || "$remote_engine" == /* ]] || die 'Remote engine must be docker, podman, or an absolute executable path.'
 
 banner
 step 'Resolve local engine and image'
@@ -272,7 +359,11 @@ if [[ -n "$build_context" ]]; then
   field 'Build context' "$build_context"
   field 'Build file' "$dockerfile"
   field 'Image tag' "$tag"
-  run_local_build "$local_engine" "$dockerfile" "$tag" "$build_context" "${build_options[@]}" || die "Local image build failed: $tag"
+  if ((${#build_options[@]})); then
+    run_local_build "$local_engine" "$dockerfile" "$tag" "$build_context" "${build_options[@]}" || die "Local image build failed: $tag"
+  else
+    run_local_build "$local_engine" "$dockerfile" "$tag" "$build_context" || die "Local image build failed: $tag"
+  fi
   image=$tag
   ok "Built $image"
 elif [[ -z "$image" ]]; then
@@ -293,7 +384,11 @@ elif [[ -z "$image" ]]; then
           read -r -a build_options <<< "$build_option_line"
         fi
       fi
-      run_local_build "$local_engine" "$dockerfile" "$tag" "$build_context" "${build_options[@]}" || die "Local image build failed: $tag"
+      if ((${#build_options[@]})); then
+        run_local_build "$local_engine" "$dockerfile" "$tag" "$build_context" "${build_options[@]}" || die "Local image build failed: $tag"
+      else
+        run_local_build "$local_engine" "$dockerfile" "$tag" "$build_context" || die "Local image build failed: $tag"
+      fi
       image=$tag
       ;;
     2) image=$(select_existing_image "$local_engine" running) ;;
@@ -308,7 +403,9 @@ ok "Selected $image"
 step 'Collect destination and runtime details'
 ssh_host=$(prompt_required 'Target FQDN / hostname / IP' "$ssh_host")
 ssh_user=$(prompt_required 'SSH user' "$ssh_user")
-remote_destination=$(prompt_required 'Remote image destination folder' "$remote_destination")
+if [[ -z "$remote_destination" ]]; then
+  remote_destination=$(prompt_default 'Remote image destination folder' '/tmp')
+fi
 ssh_port=$(prompt_default 'SSH port' "$ssh_port")
 [[ "$ssh_port" =~ ^[0-9]+$ ]] || die 'SSH port must be numeric.'
 [[ "$remote_destination" == /* ]] || die 'Remote destination must be an absolute path.'
@@ -316,7 +413,35 @@ target="$ssh_user@$ssh_host"
 scp_target=$target
 [[ "$ssh_host" == *:* ]] && scp_target="$ssh_user@[$ssh_host]"
 
-if (( start_container )); then
+if [[ -z "$deploy_mode" ]]; then
+  printf '  1) Recreate a service with Docker/Podman Compose\n'
+  printf '  2) Run a standalone container\n'
+  printf '  3) Load the image only\n'
+  deploy_selection=$(prompt_default 'Remote deployment method' '1')
+  case "$deploy_selection" in
+    1) deploy_mode=compose ;;
+    2) deploy_mode=standalone ;;
+    3) deploy_mode=none; start_container=0 ;;
+    *) die 'Remote deployment method must be 1, 2, or 3.' ;;
+  esac
+fi
+
+if [[ "$deploy_mode" == compose ]]; then
+  compose_dir=$(prompt_default 'Remote Compose project directory' "${compose_dir:-.}")
+  default_service=$(printf '%s' "$image" | sed 's|.*/||; s|[:@].*||; s|[^A-Za-z0-9_.-]|-|g')
+  case "$image" in
+    *mygarage*) default_service=mygarage ;;
+    *vehicle-hub-sync*|*vehicle-hub_vehicle-hub-sync*) default_service=vehicle-hub-sync ;;
+  esac
+  compose_service=$(prompt_default 'Compose service to recreate' "${compose_service:-$default_service}")
+  if ((${#compose_restart_services[@]} == 0)); then
+    restart_default='-'
+    [[ "$compose_service" == mygarage ]] && restart_default='vehicle-hub-gateway'
+    restart_service=$(prompt_default "Dependent Compose service to restart ('-' for none)" "$restart_default")
+    [[ "$restart_service" == '-' ]] || compose_restart_services+=("$restart_service")
+  fi
+  health_url=$(prompt_default "HTTP health URL ('-' to skip)" "${health_url:--}")
+elif [[ "$deploy_mode" == standalone ]]; then
   default_name=$(printf '%s' "$image" | sed 's|.*/||; s|[:@].*||; s|[^A-Za-z0-9_.-]|-|g')
   container_name=$(prompt_default 'Remote container name' "${container_name:-$default_name}")
   if ((${#run_options[@]} == 0)); then
@@ -334,7 +459,16 @@ fi
 field 'SSH target' "$target:$ssh_port"
 field 'Destination' "$remote_destination"
 field 'Image' "$image"
-(( start_container )) && field 'Container' "$container_name"
+if [[ "$deploy_mode" == compose ]]; then
+  field 'Deploy method' 'Compose recreate'
+  field 'Compose directory' "$compose_dir"
+  field 'Compose service' "$compose_service"
+elif [[ "$deploy_mode" == standalone ]]; then
+  field 'Deploy method' 'Standalone container'
+  field 'Container' "$container_name"
+else
+  field 'Deploy method' 'Load only'
+fi
 
 tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/image-shipper.XXXXXX")
 control_path="$tmp_dir/ssh-control"
@@ -355,10 +489,10 @@ step 'Open authenticated SSH session'
 printf '  %sOpenSSH will request the destination password or key passphrase directly.%s\n' "$C_DIM" "$C_RESET"
 remote_destination_q=$(shell_quote "$remote_destination")
 "${ssh_cmd[@]}" "$target" "mkdir -p $remote_destination_q"
-if [[ -z "$remote_engine" ]]; then
-  remote_engine=$("${ssh_cmd[@]}" "$target" 'if command -v docker >/dev/null 2>&1; then printf docker; elif command -v podman >/dev/null 2>&1; then printf podman; else exit 127; fi') || die 'Neither docker nor podman is installed remotely.'
-fi
-"${ssh_cmd[@]}" "$target" "command -v $(shell_quote "$remote_engine") >/dev/null" || die "$remote_engine is not installed remotely."
+requested_remote_engine=$remote_engine
+remote_engine=$(resolve_remote_engine "$requested_remote_engine") || die 'Docker/Podman was not visible to non-interactive SSH. Checked the remote PATH and common Linux, Homebrew, Docker Desktop, and per-user locations; use --remote-engine /absolute/path if needed.'
+remote_engine_q=$(shell_quote "$remote_engine")
+"${ssh_cmd[@]}" "$target" "test -x $remote_engine_q" || die "Remote engine is not executable: $remote_engine"
 ok "Authenticated; remote engine is $remote_engine"
 
 step 'Save and compress image'
@@ -372,61 +506,108 @@ ok "Transferred archive to $remote_archive"
 
 step 'Load image on destination'
 remote_archive_q=$(shell_quote "$remote_archive")
-"${ssh_cmd[@]}" "$target" "gzip -dc $remote_archive_q | $remote_engine load"
-remote_image_id=$("${ssh_cmd[@]}" "$target" "$remote_engine image inspect --format '{{.Id}}' $(shell_quote "$image")")
+"${ssh_cmd[@]}" "$target" "gzip -dc $remote_archive_q | $remote_engine_q load"
+remote_image_id=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{.Id}}' $(shell_quote "$image")")
 ok "Loaded $image"
 field 'Local image ID' "$local_image_id"
 field 'Remote image ID' "$remote_image_id"
 
-if (( start_container )); then
+if [[ "$deploy_mode" == compose ]]; then
+  step 'Recreate destination Compose service'
+  compose_dir_q=$(shell_quote "$compose_dir")
+  compose_service_q=$(shell_quote "$compose_service")
+  remote_build_commit=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' $(shell_quote "$image")" 2>/dev/null || true)
+  [[ "$remote_build_commit" == '<no value>' ]] && remote_build_commit=''
+  if [[ -n "$remote_build_commit" ]]; then
+    remote_compose="BUILD_COMMIT=$(shell_quote "$remote_build_commit") $remote_engine_q compose"
+    field 'Compose build ID' "$remote_build_commit"
+  else
+    remote_compose="$remote_engine_q compose"
+  fi
+  "${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose version >/dev/null" || die "Docker/Podman Compose is unavailable in $compose_dir."
+  "${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose config --services | grep -Fx -- $compose_service_q >/dev/null" || die "Compose service '$compose_service' was not found in $compose_dir."
+
+  compose_image=$("${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose config --images $compose_service_q | head -n 1")
+  if [[ -n "$compose_image" && "$compose_image" != "$image" ]]; then
+    "${ssh_cmd[@]}" "$target" "$remote_engine_q tag $(shell_quote "$image") $(shell_quote "$compose_image")"
+    ok "Aligned Compose image tag $compose_image with $image"
+  fi
+
+  "${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose up -d --no-build --no-deps --force-recreate $compose_service_q"
+  ok "Recreated Compose service $compose_service"
+  if ((${#compose_restart_services[@]})); then
+    for restart_service in "${compose_restart_services[@]}"; do
+      restart_service_q=$(shell_quote "$restart_service")
+      "${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose restart $restart_service_q"
+      ok "Restarted dependent service $restart_service"
+    done
+  fi
+
+  step 'Verify Compose service image identity and logs'
+  compose_container_id=$("${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose ps -q $compose_service_q")
+  [[ -n "$compose_container_id" ]] || die "Compose service '$compose_service' did not create a running container."
+  running_image_id=$("${ssh_cmd[@]}" "$target" "$remote_engine_q inspect --format '{{.Image}}' $(shell_quote "$compose_container_id")")
+  [[ "$running_image_id" == "$remote_image_id" ]] || die "Compose service image ID $running_image_id does not match loaded image $remote_image_id."
+  ok 'Compose service uses the newly loaded image'
+  printf '%s%s── remote logs (last 80 lines) ───────────────────────────%s\n' "$C_DIM" "$C_BOLD" "$C_RESET"
+  "${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose logs --tail 80 $compose_service_q" || warn 'Compose logs returned a non-zero status.'
+  printf '%s────────────────────────────────────────────────────────────%s\n' "$C_DIM" "$C_RESET"
+elif [[ "$deploy_mode" == standalone ]]; then
   step 'Start destination container'
   container_q=$(shell_quote "$container_name")
-  if "${ssh_cmd[@]}" "$target" "$remote_engine container inspect $container_q >/dev/null 2>&1"; then
+  if "${ssh_cmd[@]}" "$target" "$remote_engine_q container inspect $container_q >/dev/null 2>&1"; then
     if (( assume_yes )) || confirm "Replace existing container '$container_name'?"; then
-      "${ssh_cmd[@]}" "$target" "$remote_engine container rm -f $container_q >/dev/null"
+      "${ssh_cmd[@]}" "$target" "$remote_engine_q container rm -f $container_q >/dev/null"
       ok "Removed previous $container_name container"
     else
       die 'Deployment cancelled before replacing the existing container.'
     fi
   fi
-  remote_run="$remote_engine run -d --name $container_q"
-  for option in "${run_options[@]}"; do remote_run+=" $(shell_quote "$option")"; done
+  remote_run="$remote_engine_q run -d --name $container_q"
+  if ((${#run_options[@]})); then
+    for option in "${run_options[@]}"; do remote_run+=" $(shell_quote "$option")"; done
+  fi
   remote_run+=" $(shell_quote "$image")"
   "${ssh_cmd[@]}" "$target" "$remote_run"
   ok "Started $container_name"
 
   step 'Verify image identity and inspect recent logs'
-  running_image_id=$("${ssh_cmd[@]}" "$target" "$remote_engine inspect --format '{{.Image}}' $container_q")
+  running_image_id=$("${ssh_cmd[@]}" "$target" "$remote_engine_q inspect --format '{{.Image}}' $container_q")
   [[ "$running_image_id" == "$remote_image_id" ]] || die "Container image ID $running_image_id does not match loaded image $remote_image_id."
   ok 'Running container uses the newly loaded image'
   printf '%s%s── remote logs (last 80 lines) ───────────────────────────%s\n' "$C_DIM" "$C_BOLD" "$C_RESET"
-  "${ssh_cmd[@]}" "$target" "$remote_engine logs --tail 80 $container_q" || warn 'Container logs returned a non-zero status.'
+  "${ssh_cmd[@]}" "$target" "$remote_engine_q logs --tail 80 $container_q" || warn 'Container logs returned a non-zero status.'
   printf '%s────────────────────────────────────────────────────────────%s\n' "$C_DIM" "$C_RESET"
 
-  if [[ "$health_url" != '-' ]]; then
-    step 'Confirm HTTP health with curl'
-    command -v curl >/dev/null 2>&1 || die 'curl is required for HTTP verification.'
-    healthy=0
-    for attempt in {1..12}; do
-      printf '  %s[%02d/12]%s GET %s ... ' "$C_DIM" "$attempt" "$C_RESET" "$health_url"
-      if curl --fail --silent --show-error --max-time 8 --output /dev/null "$health_url"; then
-        printf '%sOK%s\n' "$C_GREEN" "$C_RESET"; healthy=1; break
-      fi
-      printf '%sretrying%s\n' "$C_YELLOW" "$C_RESET"
-      sleep 3
-    done
-    (( healthy )) || die "Health check did not succeed: $health_url"
-    ok 'The new deployment is live over HTTP'
-  else
-    warn 'HTTP verification skipped; container identity and docker/podman logs were verified.'
-  fi
 else
   warn 'Image was loaded successfully; --no-start suppressed container startup.'
+fi
+
+if [[ "$deploy_mode" != none && "$health_url" != '-' ]]; then
+  step 'Confirm HTTP health with curl'
+  command -v curl >/dev/null 2>&1 || die 'curl is required for HTTP verification.'
+  healthy=0
+  for attempt in {1..12}; do
+    printf '  %s[%02d/12]%s GET %s ... ' "$C_DIM" "$attempt" "$C_RESET" "$health_url"
+    if curl --fail --silent --show-error --max-time 8 --output /dev/null "$health_url"; then
+      printf '%sOK%s\n' "$C_GREEN" "$C_RESET"; healthy=1; break
+    fi
+    printf '%sretrying%s\n' "$C_YELLOW" "$C_RESET"
+    sleep 3
+  done
+  (( healthy )) || die "Health check did not succeed: $health_url"
+  ok 'The new deployment is live over HTTP'
+elif [[ "$deploy_mode" != none ]]; then
+  warn 'HTTP verification skipped; image identity and remote logs were verified.'
 fi
 
 step 'Deployment complete'
 field 'Image' "$image"
 field 'Remote host' "$ssh_host"
 field 'Archive retained' "$remote_archive"
-(( start_container )) && field 'Container' "$container_name"
+if [[ "$deploy_mode" == compose ]]; then
+  field 'Compose service' "$compose_service"
+elif [[ "$deploy_mode" == standalone ]]; then
+  field 'Container' "$container_name"
+fi
 printf '\n%s%s✓ Image shipment completed successfully.%s\n' "$C_GREEN" "$C_BOLD" "$C_RESET"

@@ -83,6 +83,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Image Shipper now accepts repeatable local build options and diagnoses
   memory-exhaustion failures with the engine's available-memory total and a
   retained build log, instead of ending at an unexplained SIGKILL.
+- Image Shipper now finds Docker or Podman in non-interactive SSH sessions
+  whose PATH omits the destination user's normal CLI locations, including
+  Linux, Homebrew, Docker Desktop, and per-user installs. An absolute remote
+  engine executable can also be supplied when needed.
+- Image Shipper can now recreate a selected service from a remote Compose
+  project immediately after loading the image, including aligning legacy image
+  tags, restarting dependent services, and verifying the running image ID.
+  Passing `ship .` selects the remote SSH user's current Compose directory;
+  `/tmp` is the default transfer destination. Empty build/run options no longer
+  crash under the Bash 3.2 runtime included with macOS.
 
 ## [3.1.4] - 2026-08-23
 
