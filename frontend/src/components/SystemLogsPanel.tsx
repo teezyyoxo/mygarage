@@ -66,7 +66,7 @@ export default function SystemLogsPanel({ locked = false }: { locked?: boolean }
     timestamp: '2026-08-24T12:00:00Z',
     level: index % 4 === 0 ? 'WARNING' : 'INFO',
     logger: 'mygarage.system',
-    message: 'Protected system diagnostic output is available to administrators.',
+    message: t('systemLogs.protectedPlaceholder'),
   }))
   const displayedLogs = locked ? placeholderLogs : logs
 

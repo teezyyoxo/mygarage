@@ -20,16 +20,68 @@ def _lines(text: str) -> list[str]:
     return cleaned
 
 
-def _date(value: str) -> date | None:
-    match = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b", value)
-    if not match:
-        return None
-    month, day, year = map(int, match.groups())
+_MONTHS = {
+    name: index
+    for index, names in enumerate(
+        (
+            (),
+            ("JAN", "JANUARY"),
+            ("FEB", "FEBRUARY"),
+            ("MAR", "MARCH"),
+            ("APR", "APRIL"),
+            ("MAY",),
+            ("JUN", "JUNE"),
+            ("JUL", "JULY"),
+            ("AUG", "AUGUST"),
+            ("SEP", "SEPT", "SEPTEMBER"),
+            ("OCT", "OCTOBER"),
+            ("NOV", "NOVEMBER"),
+            ("DEC", "DECEMBER"),
+        )
+    )
+    for name in names
+}
+_MONTH_PATTERN = "|".join(sorted(_MONTHS, key=len, reverse=True))
+
+
+def _make_date(year: int, month: int, day: int) -> date | None:
     year += 2000 if year < 70 else 1900 if year < 100 else 0
     try:
         return date(year, month, day)
     except ValueError:
         return None
+
+
+def _date(value: str) -> date | None:
+    """Parse numeric and dealership/OCR date formats without guessing prose."""
+    iso = re.search(r"\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b", value)
+    if iso:
+        year, month, day = map(int, iso.groups())
+        return _make_date(year, month, day)
+
+    numeric = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b", value)
+    if numeric:
+        month, day, year = map(int, numeric.groups())
+        return _make_date(year, month, day)
+
+    day_first = re.search(
+        rf"\b(\d{{1,2}})\s*[-./]?\s*({_MONTH_PATTERN})\s*[-./]?\s*(\d{{2,4}})\b",
+        value,
+        re.IGNORECASE,
+    )
+    if day_first:
+        day_text, month_text, year_text = day_first.groups()
+        return _make_date(int(year_text), _MONTHS[month_text.upper()], int(day_text))
+
+    month_first = re.search(
+        rf"\b({_MONTH_PATTERN})\s+(\d{{1,2}})(?:st|nd|rd|th)?[,]?\s+(\d{{2,4}})\b",
+        value,
+        re.IGNORECASE,
+    )
+    if month_first:
+        month_text, day_text, year_text = month_first.groups()
+        return _make_date(int(year_text), _MONTHS[month_text.upper()], int(day_text))
+    return None
 
 
 def _first(text: str, patterns: list[str]) -> str | None:
@@ -63,7 +115,7 @@ def _service_lines(lines: list[str]) -> list[str]:
     useful = re.compile(
         r"oil|filter|tire|tyre|brake|coolant|inspection|diagnos|replace|repair|service|"
         r"maintenance|rotate|alignment|battery|fluid|belt|spark|flush|installed|performed|"
-        r"transmission|engine|air condition|a/?c\b",
+        r"transmission|engine|air condition|a/?c\b|scan(?:ned|ning)?|codes?\b",
         re.IGNORECASE,
     )
     result: list[str] = []
@@ -84,8 +136,8 @@ def _service_lines(lines: list[str]) -> list[str]:
     return result[:40]
 
 
-def parse_maintenance_text(text: str) -> dict[str, Any]:
-    """Extract enough trustworthy data to create one service visit."""
+def parse_maintenance_text(text: str, *, require_complete: bool = True) -> dict[str, Any]:
+    """Extract maintenance fields, optionally retaining incomplete previews."""
     lines = _lines(text)
     if len("".join(lines)) < 40:
         raise MaintenancePdfParseError(
@@ -95,6 +147,7 @@ def parse_maintenance_text(text: str) -> dict[str, Any]:
     normalized = "\n".join(lines)
 
     service_date = None
+    date_source = None
     close_date_pair = re.search(
         r"R/?O Close Date\s+Status\s*\n\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
         normalized,
@@ -102,9 +155,12 @@ def parse_maintenance_text(text: str) -> dict[str, Any]:
     )
     if close_date_pair:
         service_date = _date(close_date_pair.group(1))
+        date_source = "R/O close date"
     for pattern in (
+        r"R[./ ]?O[./ ]?\s*Opened[^\n]*\n\s*([^\n]+)",
+        r"R[./ ]?O[./ ]?\s*(?:Open Date|Opened)\s*:?\s*([^\n]+)",
         r"R/?O Close Date\s*:?\s*([^\n]+)",
-        r"Invoice Date\s*:?\s*([^\n]+)",
+        r"(?:Invoice|Inv[.]?)\s*Date\s*:?\s*([^\n]+)",
         r"Service Date\s*:?\s*([^\n]+)",
         r"Date Created\s*:?\s*([^\n]+)",
         r"Paid on\s+([^\n]+)",
@@ -112,10 +168,13 @@ def parse_maintenance_text(text: str) -> dict[str, Any]:
         if not service_date:
             match = re.search(pattern, normalized, re.IGNORECASE)
             if match and (service_date := _date(match.group(1))):
+                date_source = match.group(0).splitlines()[0][:80]
                 break
     if not service_date:
         service_date = next((_date(line) for line in lines[:45] if _date(line)), None)
-    if not service_date:
+        if service_date:
+            date_source = "invoice header"
+    if not service_date and require_complete:
         raise MaintenancePdfParseError(
             "Maintenance details were found, but no recognizable service date was present."
         )
@@ -125,10 +184,14 @@ def parse_maintenance_text(text: str) -> dict[str, Any]:
         normalized,
         re.IGNORECASE,
     )
-    mileage_match = None if mileage_pair else re.search(
-        r"(?:odometer(?: mileage)?|mileage(?: in| out)?)\s*:?\s*([\d,]+)\s*(km|mi|miles)?",
-        normalized,
-        re.IGNORECASE,
+    mileage_match = (
+        None
+        if mileage_pair
+        else re.search(
+            r"(?:odometer(?: mileage)?|mileage(?: in| out)?)\s*:?\s*([\d,]+)\s*(km|mi|miles)?",
+            normalized,
+            re.IGNORECASE,
+        )
     )
     mileage_text = mileage_pair.group(1) if mileage_pair else None
     if mileage_text is None and mileage_match:
@@ -137,6 +200,16 @@ def parse_maintenance_text(text: str) -> dict[str, Any]:
     mileage_unit = (mileage_match.group(2) or "mi").lower() if mileage_match else None
     if mileage_pair:
         mileage_unit = "mi"
+    if mileage_text is None:
+        in_out_match = re.search(
+            r"Mileage\s+In\s*/?\s*Out[^\n]*\n[^\n]*?\b([\d,]+)\s*/\s*[\d,]+",
+            normalized,
+            re.IGNORECASE,
+        )
+        if in_out_match:
+            mileage_text = in_out_match.group(1)
+            mileage = int(mileage_text.replace(",", ""))
+            mileage_unit = "mi"
 
     total = None
     for pattern in (
@@ -150,7 +223,7 @@ def parse_maintenance_text(text: str) -> dict[str, Any]:
             break
 
     work = _service_lines(lines)
-    if not work:
+    if not work and require_complete:
         raise MaintenancePdfParseError(
             "Text was extracted, but no recognizable maintenance or repair work was found."
         )
@@ -159,7 +232,7 @@ def parse_maintenance_text(text: str) -> dict[str, Any]:
         ("Oil service", r"oil|oil filter"),
         ("Brake service", r"brake|rotor|caliper"),
         ("Tire service", r"tire|tyre|rotation|alignment"),
-        ("Inspection / diagnostic", r"inspection|diagnos|vehicle scan"),
+        ("Inspection / diagnostic", r"inspection|diagnos|vehicle scan|scanned vehicle|codes?\b"),
         ("Cooling system service", r"coolant|radiator|water pump"),
         ("Scheduled maintenance", r"maintenance|service performed"),
     ]
@@ -171,20 +244,26 @@ def parse_maintenance_text(text: str) -> dict[str, Any]:
         normalized,
         re.IGNORECASE,
     )
-    invoice_number = paired_invoice.group(1) if paired_invoice else _first(
-        normalized,
-        [
-            r"Invoice\s*(?:ID|Number|No\.?|#)\s*[:#]?\s*([A-Z0-9-]+)",
-            r"\bR/?O\s*(?:Number|#)\s*:?\s*([A-Z0-9-]+)",
-        ],
+    invoice_number = (
+        paired_invoice.group(1)
+        if paired_invoice
+        else _first(
+            normalized,
+            [
+                r"Invoice\s*(?:ID|Number|No\.?|#)\s*[:#]?\s*([A-Z0-9-]+)",
+                r"\bR/?O\s*(?:Number|#)\s*:?\s*([A-Z0-9-]+)",
+                r"\b(\d{5,})\s*\n\s*\*?INVOICE\*?\b",
+            ],
+        )
     )
 
     return {
         "date": service_date,
+        "date_source": date_source,
         "mileage": mileage,
         "mileage_unit": mileage_unit,
         "total_cost": total,
-        "description": " / ".join(detected[:2]) or work[0][:200],
+        "description": " / ".join(detected[:2]) or (work[0][:200] if work else None),
         "notes": "\n".join(work),
         "shop": _shop(lines),
         "invoice_number": invoice_number,

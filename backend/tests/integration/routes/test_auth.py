@@ -10,6 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy import delete, select  # noqa: F401
 
 from app.config import settings
+from app.models.settings import Setting
 from app.models.user import User
 
 
@@ -43,6 +44,10 @@ class TestUserRegistration:
         assert data["is_admin"] is True
         assert data["is_active"] is True
         assert "hashed_password" not in data  # Password should not be returned
+        auth_mode = (
+            await db_session.execute(select(Setting).where(Setting.key == "auth_mode"))
+        ).scalar_one()
+        assert auth_mode.value == "local"
 
     @pytest.mark.skip(
         reason="Single-user mode: registration disabled after first user, "

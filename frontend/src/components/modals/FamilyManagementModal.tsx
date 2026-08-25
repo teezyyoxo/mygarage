@@ -18,6 +18,7 @@ import api from '@/services/api'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { useAuth } from '@/contexts/AuthContext'
 import { familyService } from '@/services/familyService'
+import { withBase } from '@/utils/basePath'
 import type { FamilyMemberData } from '@/types/family'
 import type { User } from '@/types/user'
 import FamilyMemberCard from '@/components/FamilyMemberCard'
@@ -504,6 +505,10 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                     <p className="text-garage-text-muted">
                       {t('modal.enableAuthDescription')}
                     </p>
+                    <a href={withBase('/register')} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-(--accent-on-solid) hover:bg-primary/90">
+                      <UserPlus className="h-4 w-4" />
+                      {t('modal.localAuth.registerFirstUser')}
+                    </a>
                   </div>
                 ) : (
                   <>

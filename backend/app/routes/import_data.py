@@ -17,6 +17,7 @@ import hashlib
 import io
 import json
 import logging
+import shutil
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -53,6 +54,7 @@ from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.document_ocr import document_ocr_service
 from app.services.file_upload_service import DOCUMENT_UPLOAD_CONFIG, FileUploadService
 from app.services.maintenance_pdf_parser import MaintenancePdfParseError, parse_maintenance_text
+from app.services.settings_service import SettingsService
 from app.utils.def_sync import ensure_def_capable
 from app.utils.file_validation import validate_csv_upload
 from app.utils.logging_utils import sanitize_for_log
@@ -155,10 +157,127 @@ VALID_SERVICE_CATEGORIES = {"Maintenance", "Inspection", "Collision", "Upgrades"
 limiter = Limiter(key_func=get_remote_address)
 
 
+async def _save_imports_to_documents(db: AsyncSession) -> bool:
+    setting = await SettingsService.get(db, "maintenance_import_save_to_documents")
+    return setting is None or (setting.value or "true").lower() in {"true", "1", "yes", "on"}
+
+
+def _reviewed_maintenance_fields(raw: str) -> dict[str, Any]:
+    try:
+        values = json.loads(raw)
+        service_date = date_type.fromisoformat(str(values["date"]))
+    except (TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=422, detail="A valid service date is required") from exc
+
+    description = str(values.get("description") or "").strip()
+    if not description:
+        raise HTTPException(status_code=422, detail="A service description is required")
+
+    def optional_number(key: str, cast):
+        value = values.get(key)
+        if value in (None, ""):
+            return None
+        try:
+            parsed_value = cast(value)
+        except (TypeError, ValueError, InvalidOperation) as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid {key.replace('_', ' ')}") from exc
+        if parsed_value < 0:
+            raise HTTPException(
+                status_code=422, detail=f"{key.replace('_', ' ').title()} cannot be negative"
+            )
+        return parsed_value
+
+    return {
+        "date": service_date,
+        "date_source": "user verified",
+        "mileage": optional_number("mileage", int),
+        "mileage_unit": "km" if values.get("mileage_unit") == "km" else "mi",
+        "total_cost": optional_number("total_cost", Decimal),
+        "description": description[:200],
+        "notes": str(values.get("notes") or description).strip()[:20000],
+        "shop": str(values.get("shop") or "").strip()[:100] or None,
+        "invoice_number": str(values.get("invoice_number") or "").strip()[:100] or None,
+    }
+
+
+@router.post("/vehicles/{vin}/pdf/preview")
+async def preview_vehicle_pdf(
+    vin: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
+    """OCR a maintenance PDF and return editable fields without changing data."""
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+    filename = file.filename or "vehicle-document.pdf"
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+
+    pdf_bytes = await FileUploadService.validate_upload(file, DOCUMENT_UPLOAD_CONFIG)
+    logs: list[dict[str, str]] = [
+        {"level": "info", "message": f"Received {filename} ({len(pdf_bytes):,} bytes)."},
+        {"level": "info", "message": "Beginning embedded-text extraction and OCR analysis."},
+    ]
+    try:
+        extracted_text = await document_ocr_service.extract_text(pdf_bytes, is_pdf=True)
+    except Exception as exc:
+        logger.warning("PDF preview OCR failed for vin=%s: %s", sanitize_for_log(vin), exc)
+        extracted_text = ""
+    text_length = len(extracted_text.strip())
+    logs.append(
+        {
+            "level": "success" if text_length else "warning",
+            "message": f"Extracted {text_length:,} characters from the PDF."
+            if text_length
+            else "No readable text was extracted; manual details are required.",
+        }
+    )
+
+    warnings: list[str] = []
+    try:
+        parsed = parse_maintenance_text(extracted_text, require_complete=False)
+    except MaintenancePdfParseError as exc:
+        parsed = {
+            "date": None,
+            "date_source": None,
+            "mileage": None,
+            "mileage_unit": "mi",
+            "total_cost": None,
+            "description": None,
+            "notes": "",
+            "shop": None,
+            "invoice_number": None,
+        }
+        warnings.append(str(exc))
+    if parsed["date"] is None:
+        warnings.append("No service date was recognized; choose it before importing.")
+    if not parsed["description"]:
+        warnings.append("No service description was recognized; enter one before importing.")
+    for warning in warnings:
+        logs.append({"level": "warning", "message": warning})
+    logs.append(
+        {
+            "level": "info",
+            "message": "Review every detected field. Nothing will be saved until you confirm.",
+        }
+    )
+    return {
+        "import_kind": "maintenance_pdf",
+        "status": "review_required",
+        "fields": parsed,
+        "warnings": warnings,
+        "operation_logs": logs,
+        "ocr_text_extracted": bool(text_length),
+        "save_to_documents_default": await _save_imports_to_documents(db),
+    }
+
+
 @router.post("/vehicles/{vin}/pdf")
 async def import_vehicle_pdf(
     vin: str,
     file: UploadFile = File(...),
+    reviewed_fields: str | None = Form(None),
+    save_to_documents: bool | None = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ) -> dict[str, Any]:
@@ -169,33 +288,47 @@ async def import_vehicle_pdf(
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF")
 
+    save_document = (
+        await _save_imports_to_documents(db) if save_to_documents is None else save_to_documents
+    )
+    verified = _reviewed_maintenance_fields(reviewed_fields) if reviewed_fields else None
     upload_result = await FileUploadService.upload_file(
         file, DOCUMENT_UPLOAD_CONFIG, subdirectory=vin
     )
     pdf_bytes = await asyncio.to_thread(Path(upload_result.file_path).read_bytes)
     operation_logs: list[dict[str, str]] = [
         {"level": "info", "message": f"Received {filename} ({len(pdf_bytes):,} bytes)."},
-        {"level": "info", "message": "Saved the original PDF; beginning text extraction."},
-    ]
-    try:
-        extracted_text = await document_ocr_service.extract_text(pdf_bytes, is_pdf=True)
-    except Exception as exc:
-        logger.warning("PDF OCR failed for vin=%s: %s", sanitize_for_log(vin), exc)
-        extracted_text = ""
-    text_length = len(extracted_text.strip())
-    operation_logs.append(
         {
-            "level": "success" if text_length else "warning",
-            "message": (
-                f"Extracted {text_length:,} characters from the PDF."
-                if text_length
-                else "No readable text was extracted from the PDF."
-            ),
-        }
-    )
-
+            "level": "info",
+            "message": "Saved the original PDF; applying verified details."
+            if verified
+            else "Saved the original PDF; beginning text extraction.",
+        },
+    ]
+    extracted_text = ""
+    text_length = 0
     try:
-        parsed = parse_maintenance_text(extracted_text)
+        if verified:
+            parsed = verified
+            operation_logs.append(
+                {"level": "success", "message": "Accepted the user-verified maintenance details."}
+            )
+        else:
+            try:
+                extracted_text = await document_ocr_service.extract_text(pdf_bytes, is_pdf=True)
+            except Exception as exc:
+                logger.warning("PDF OCR failed for vin=%s: %s", sanitize_for_log(vin), exc)
+                extracted_text = ""
+            text_length = len(extracted_text.strip())
+            operation_logs.append(
+                {
+                    "level": "success" if text_length else "warning",
+                    "message": f"Extracted {text_length:,} characters from the PDF."
+                    if text_length
+                    else "No readable text was extracted from the PDF.",
+                }
+            )
+            parsed = parse_maintenance_text(extracted_text)
     except MaintenancePdfParseError as exc:
         reason = str(exc)
         logger.warning(
@@ -204,25 +337,30 @@ async def import_vehicle_pdf(
             sanitize_for_log(filename),
             sanitize_for_log(reason),
         )
-        db.add(
-            Document(
-                vin=vin,
-                file_path=str(upload_result.file_path),
-                file_name=filename,
-                file_size=upload_result.file_size,
-                mime_type="application/pdf",
-                document_type="Unparsed Maintenance Record",
-                title=f"Unparsed maintenance PDF: {filename.rsplit('.', 1)[0]}",
-                description=f"Maintenance import skipped: {reason}",
+        if save_document:
+            db.add(
+                Document(
+                    vin=vin,
+                    file_path=str(upload_result.file_path),
+                    file_name=filename,
+                    file_size=upload_result.file_size,
+                    mime_type="application/pdf",
+                    document_type="Unparsed Maintenance Record",
+                    title=f"Unparsed maintenance PDF: {filename.rsplit('.', 1)[0]}",
+                    description=f"Maintenance import skipped: {reason}",
+                )
             )
-        )
+        else:
+            await asyncio.to_thread(Path(upload_result.file_path).unlink, missing_ok=True)
         await db.commit()
         operation_logs.extend(
             [
                 {"level": "warning", "message": f"Maintenance record skipped: {reason}"},
                 {
                     "level": "info",
-                    "message": "The original PDF is still available under Documents.",
+                    "message": "The original PDF is still available under Documents."
+                    if save_document
+                    else "The original PDF was not retained because Documents saving is off.",
                 },
             ]
         )
@@ -230,7 +368,7 @@ async def import_vehicle_pdf(
             "import_kind": "maintenance_pdf",
             "status": "skipped",
             "service_records": {"success_count": 0, "error_count": 0, "skipped_count": 1},
-            "document": {"success_count": 1, "error_count": 0, "skipped_count": 0},
+            "document": {"success_count": int(save_document), "error_count": 0, "skipped_count": 0},
             "operation_logs": operation_logs,
             "ocr_text_extracted": bool(text_length),
             "reason": reason,
@@ -247,18 +385,21 @@ async def import_vehicle_pdf(
     if existing.scalar_one_or_none():
         reason = "This exact PDF has already been imported as a maintenance record."
         logger.info("Maintenance PDF duplicate skipped for vin=%s", sanitize_for_log(vin))
-        db.add(
-            Document(
-                vin=vin,
-                file_path=str(upload_result.file_path),
-                file_name=filename,
-                file_size=upload_result.file_size,
-                mime_type="application/pdf",
-                document_type="Duplicate Maintenance Record",
-                title=f"Duplicate maintenance PDF: {filename.rsplit('.', 1)[0]}",
-                description=reason,
+        if save_document:
+            db.add(
+                Document(
+                    vin=vin,
+                    file_path=str(upload_result.file_path),
+                    file_name=filename,
+                    file_size=upload_result.file_size,
+                    mime_type="application/pdf",
+                    document_type="Duplicate Maintenance Record",
+                    title=f"Duplicate maintenance PDF: {filename.rsplit('.', 1)[0]}",
+                    description=reason,
+                )
             )
-        )
+        else:
+            await asyncio.to_thread(Path(upload_result.file_path).unlink, missing_ok=True)
         await db.commit()
         operation_logs.append(
             {"level": "warning", "message": f"Maintenance record skipped: {reason}"}
@@ -267,7 +408,7 @@ async def import_vehicle_pdf(
             "import_kind": "maintenance_pdf",
             "status": "skipped",
             "service_records": {"success_count": 0, "error_count": 0, "skipped_count": 1},
-            "document": {"success_count": 1, "error_count": 0, "skipped_count": 0},
+            "document": {"success_count": int(save_document), "error_count": 0, "skipped_count": 0},
             "operation_logs": operation_logs,
             "ocr_text_extracted": True,
             "reason": reason,
@@ -289,7 +430,9 @@ async def import_vehicle_pdf(
     odometer_km = (
         Decimal(str(mileage))
         if mileage is not None and parsed["mileage_unit"] == "km"
-        else _mi_to_km(Decimal(str(mileage))) if mileage is not None else None
+        else _mi_to_km(Decimal(str(mileage)))
+        if mileage is not None
+        else None
     )
     notes = f"Imported from maintenance PDF: {filename}"
     if parsed["invoice_number"]:
@@ -325,6 +468,22 @@ async def import_vehicle_pdf(
             file_size=upload_result.file_size,
         )
     )
+    if save_document:
+        source_path = Path(upload_result.file_path)
+        document_path = source_path.with_name(f"{source_path.stem}_document{source_path.suffix}")
+        await asyncio.to_thread(shutil.copy2, source_path, document_path)
+        db.add(
+            Document(
+                vin=vin,
+                file_path=str(document_path),
+                file_name=filename,
+                file_size=upload_result.file_size,
+                mime_type="application/pdf",
+                document_type="Maintenance Record",
+                title=parsed["description"][:200],
+                description=f"Imported maintenance record dated {parsed['date'].isoformat()}.",
+            )
+        )
     await db.commit()
     operation_logs.extend(
         [
@@ -337,6 +496,12 @@ async def import_vehicle_pdf(
                 "message": f"Created maintenance record: {parsed['description']}.",
             },
             {"level": "success", "message": "Attached the original PDF to the new service visit."},
+            {
+                "level": "success" if save_document else "info",
+                "message": "Saved the original PDF under Documents."
+                if save_document
+                else "Documents saving was disabled for this upload.",
+            },
             {"level": "success", "message": "Import completed successfully."},
         ]
     )
@@ -351,7 +516,7 @@ async def import_vehicle_pdf(
         "status": "complete",
         "service_visit_id": visit.id,
         "service_records": {"success_count": 1, "error_count": 0, "skipped_count": 0},
-        "document": {"success_count": 1, "error_count": 0, "skipped_count": 0},
+        "document": {"success_count": int(save_document), "error_count": 0, "skipped_count": 0},
         "operation_logs": operation_logs,
         "ocr_text_extracted": True,
     }

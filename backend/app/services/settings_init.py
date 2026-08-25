@@ -152,6 +152,12 @@ DEFAULT_SETTINGS = {
         "description": "Maximum file upload size in MB",
         "encrypted": False,
     },
+    "maintenance_import_save_to_documents": {
+        "value": "true",
+        "category": "files",
+        "description": "Automatically save imported maintenance PDFs in Documents",
+        "encrypted": False,
+    },
     "allowed_photo_types": {
         "value": "jpg,jpeg,png,webp",
         "category": "files",

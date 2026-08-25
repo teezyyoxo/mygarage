@@ -101,10 +101,28 @@ async def register(
     )
 
     db.add(new_user)
+    auth_mode_result = await db.execute(select(Setting).where(Setting.key == "auth_mode"))
+    auth_mode_setting = auth_mode_result.scalar_one_or_none()
+    if auth_mode_setting:
+        auth_mode_setting.value = "local"
+        auth_mode_setting.updated_at = utc_now()
+    else:
+        db.add(
+            Setting(
+                key="auth_mode",
+                value="local",
+                category="security",
+                description="Authentication mode (none, local, oidc)",
+                encrypted=False,
+            )
+        )
     await db.commit()
     await db.refresh(new_user)
 
-    logger.info("First admin user registered: %s", sanitize_for_log(new_user.username))
+    logger.info(
+        "First admin user registered and local authentication enabled: %s",
+        sanitize_for_log(new_user.username),
+    )
 
     return new_user
 

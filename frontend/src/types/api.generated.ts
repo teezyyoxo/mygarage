@@ -880,6 +880,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/backup/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Import
+         * @description Preview a staged full backup before merge or replace.
+         */
+        post: operations["preview_import_api_backup_import_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backup/import/{mode}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Backup
+         * @description Apply a staged full backup using explicit merge or replace mode.
+         */
+        post: operations["import_backup_api_backup_import__mode__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/backup/list": {
         parameters: {
             query?: never;
@@ -1725,6 +1765,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/import/vehicles/{vin}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Vehicle Pdf
+         * @description Import one maintenance/service visit from a PDF and attach the original.
+         */
+        post: operations["import_vehicle_pdf_api_import_vehicles__vin__pdf_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/import/vehicles/{vin}/pdf/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Vehicle Pdf
+         * @description OCR a maintenance PDF and return editable fields without changing data.
+         */
+        post: operations["preview_vehicle_pdf_api_import_vehicles__vin__pdf_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/import/vehicles/{vin}/service/csv": {
         parameters: {
             query?: never;
@@ -1799,6 +1879,40 @@ export interface paths {
         get: operations["list_insurance_parsers_api_insurance_parsers_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/integration/v1/vehicle-hub/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Integration Health */
+        get: operations["integration_health_api_integration_v1_vehicle_hub_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/integration/v1/vehicle-hub/service-records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Reviewed Records */
+        post: operations["apply_reviewed_records_api_integration_v1_vehicle_hub_service_records_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2650,6 +2764,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/service-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Service Categories
+         * @description Get the built-in default categories plus every custom category any vehicle
+         *     in the fleet has used, so the category field can offer the same
+         *     type-your-own-or-pick-one experience as the line-item description field.
+         *
+         *     **Returns:**
+         *     - Deduplicated list of category names: defaults first (in their usual
+         *       order), then custom fleet-used values sorted alphabetically.
+         */
+        get: operations["list_service_categories_api_service_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/service-visits/{visit_id}/attachments": {
         parameters: {
             query?: never;
@@ -2884,6 +3024,30 @@ export interface paths {
          * @description Get system information and statistics (admin only).
          */
         get: operations["get_system_info_api_settings_system_info_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/system/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get System Logs
+         * @description Get recent live server logs from the in-memory ring buffer (admin only).
+         *
+         *     Logs are otherwise stdout/stderr-only; this lets the Settings -> System
+         *     page show what the backend is doing right now (e.g. a failed import that
+         *     otherwise returns a silent zero-imported result).
+         */
+        get: operations["get_system_logs_api_settings_system_logs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3350,6 +3514,94 @@ export interface paths {
         get: operations["list_widget_vehicles_api_v2_widget_vehicles_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicle-hub/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Review */
+        post: operations["apply_review_api_vehicle_hub_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicle-hub/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Connection
+         * @description Re-test and persist one exact VIN + Command URL pair.
+         */
+        post: operations["save_connection_api_vehicle_hub_connection_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicle-hub/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reconcile */
+        post: operations["reconcile_api_vehicle_hub_reconcile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicle-hub/scope": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Scope */
+        get: operations["scope_api_vehicle_hub_scope_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicle-hub/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Connection */
+        post: operations["test_connection_api_vehicle_hub_test_connection_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5962,6 +6214,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Version Info
+         * @description Public runtime identity for deployment and support diagnostics.
+         */
+        get: operations["version_info_api_version_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vin/decode": {
         parameters: {
             query?: never;
@@ -6598,6 +6870,15 @@ export interface components {
              */
             skip_duplicates: boolean;
         };
+        /** Body_import_vehicle_pdf_api_import_vehicles__vin__pdf_post */
+        Body_import_vehicle_pdf_api_import_vehicles__vin__pdf_post: {
+            /** File */
+            file: string;
+            /** Reviewed Fields */
+            reviewed_fields?: string | null;
+            /** Save To Documents */
+            save_to_documents?: boolean | null;
+        };
         /** Body_import_warranties_csv_api_import_vehicles__vin__warranties_csv_post */
         Body_import_warranties_csv_api_import_vehicles__vin__warranties_csv_post: {
             /** File */
@@ -6610,6 +6891,11 @@ export interface components {
         };
         /** Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post */
         Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_preview_vehicle_pdf_api_import_vehicles__vin__pdf_preview_post */
+        Body_preview_vehicle_pdf_api_import_vehicles__vin__pdf_preview_post: {
             /** File */
             file: string;
         };
@@ -10814,6 +11100,17 @@ export interface components {
             seasons: components["schemas"]["SeasonalAnalysis"][];
         };
         /**
+         * ServiceCategoryListResponse
+         * @description Response for the fleet-wide service category suggestion list.
+         */
+        ServiceCategoryListResponse: {
+            /**
+             * Categories
+             * @description Default plus fleet-used category names
+             */
+            categories: string[];
+        };
+        /**
          * ServiceHistoryItem
          * @description Service history timeline item.
          */
@@ -11210,10 +11507,7 @@ export interface components {
             external_id?: string | null;
             /** External Source */
             external_source?: string | null;
-            /**
-             * External Updated At
-             * Format: date-time
-             */
+            /** External Updated At */
             external_updated_at?: string | null;
             /**
              * Has Failed Inspections
@@ -16614,6 +16908,74 @@ export interface operations {
             };
         };
     };
+    preview_import_api_backup_import_preview_post: {
+        parameters: {
+            query: {
+                filename: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_backup_api_backup_import__mode__post: {
+        parameters: {
+            query: {
+                filename: string;
+            };
+            header?: never;
+            path: {
+                mode: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_backups_api_backup_list_get: {
         parameters: {
             query?: {
@@ -17755,6 +18117,80 @@ export interface operations {
             };
         };
     };
+    import_vehicle_pdf_api_import_vehicles__vin__pdf_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_vehicle_pdf_api_import_vehicles__vin__pdf_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_vehicle_pdf_api_import_vehicles__vin__pdf_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_vehicle_pdf_api_import_vehicles__vin__pdf_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_service_csv_api_import_vehicles__vin__service_csv_post: {
         parameters: {
             query?: never;
@@ -17878,6 +18314,74 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    integration_health_api_integration_v1_vehicle_hub_health_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_reviewed_records_api_integration_v1_vehicle_hub_service_records_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -18942,6 +19446,26 @@ export interface operations {
             };
         };
     };
+    list_service_categories_api_service_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryListResponse"];
+                };
+            };
+        };
+    };
     list_service_visit_attachments_api_service_visits__visit_id__attachments_get: {
         parameters: {
             query?: never;
@@ -19290,6 +19814,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemInfoResponse"];
+                };
+            };
+        };
+    };
+    get_system_logs_api_settings_system_logs_get: {
+        parameters: {
+            query?: {
+                /** @description Maximum log lines to return */
+                limit?: number;
+                /** @description Only return log lines newer than this id, for incremental polling */
+                after_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -20115,6 +20673,183 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WidgetVehicleList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_review_api_vehicle_hub_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_connection_api_vehicle_hub_connection_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reconcile_api_vehicle_hub_reconcile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scope_api_vehicle_hub_scope_get: {
+        parameters: {
+            query: {
+                vehicleVin: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean | string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_connection_api_vehicle_hub_test_connection_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -24945,6 +25680,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    version_info_api_version_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

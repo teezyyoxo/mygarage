@@ -4,9 +4,10 @@ Integration tests for data import routes.
 Tests CSV and JSON import operations for various record types.
 """
 
+import json
 from io import BytesIO
 
-import fitz
+import pymupdf
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -66,7 +67,7 @@ class TestImportRoutes:
         self, client: AsyncClient, auth_headers, test_vehicle, db_session
     ):
         """A vehicle PDF is a maintenance-record import, not a generic note import."""
-        document = fitz.open()
+        document = pymupdf.open()
         page = document.new_page()
         page.insert_text(
             (72, 72),
@@ -80,18 +81,32 @@ class TestImportRoutes:
         pdf_bytes = document.tobytes()
         document.close()
 
+        preview = await client.post(
+            f"/api/import/vehicles/{test_vehicle['vin']}/pdf/preview",
+            headers=auth_headers,
+            files={"file": ("service.pdf", BytesIO(pdf_bytes), "application/pdf")},
+        )
+        assert preview.status_code == 200
+        preview_result = preview.json()
+        assert preview_result["status"] == "review_required"
+        assert preview_result["fields"]["date"] == "2026-08-21"
+
         response = await client.post(
             f"/api/import/vehicles/{test_vehicle['vin']}/pdf",
             headers=auth_headers,
             files={"file": ("service.pdf", BytesIO(pdf_bytes), "application/pdf")},
+            data={
+                "reviewed_fields": json.dumps(preview_result["fields"]),
+                "save_to_documents": "false",
+            },
         )
         assert response.status_code == 200
         result = response.json()
         assert result["status"] == "complete"
         assert result["service_records"]["success_count"] == 1
+        assert result["document"]["success_count"] == 0
         assert any(
-            "Created maintenance record" in line["message"]
-            for line in result["operation_logs"]
+            "Created maintenance record" in line["message"] for line in result["operation_logs"]
         )
 
         visit = (

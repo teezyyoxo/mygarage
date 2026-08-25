@@ -5,7 +5,7 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.1.5] - 2026-08-24
+## [3.1.5] - 2026-08-25
 
 ### Fixed
 
@@ -25,6 +25,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Tesseract executable that the existing Python OCR integration requires.
 - Short PDFs with valid embedded text no longer lose that text when the OCR
   fallback produces no output.
+- Maintenance invoice parsing now understands compact dealership dates such as
+  `21JUL26`, prioritizes **R.O. Opened** / repair-order dates, and recognizes
+  common mileage-in/out and invoice-number layouts. This fixes valid scanned
+  dealership invoices being rejected for a missing service date.
+- PDF maintenance imports no longer discard an otherwise useful parse because
+  one required field is uncertain. OCR now produces an editable preview and
+  requires the user to verify the service date and description before the
+  service visit is created; dates use the native calendar picker.
+- Local-authentication setup can no longer lock a fresh installation out of
+  every Settings page. The first-account flow now creates the administrator
+  and enables Local authentication atomically, while direct Settings writes
+  reject enabling Local mode until an administrator exists. Both the System
+  authentication card and the previously dead-end Family Management state now
+  link directly to first-admin registration.
+- Enabling Local authentication when accounts already exist now sends the
+  browser directly to sign-in instead of leaving the current anonymous
+  Settings session to fail one tab at a time.
+- Replaced deprecated `fitz` imports with the supported `pymupdf` API while
+  retaining the existing embedded-text and Tesseract OCR pipeline.
 - The Settings → System **System Logs** card is now visible to every user, but
   non-admin and unauthenticated sessions see a fully blurred preview with an
   **Admin only** label. The log API separately requires a real authenticated
@@ -32,12 +51,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved the Settings → System **System Logs** card directly beneath
+  **Archived Vehicles** so system administration tools stay grouped together.
 - Renamed the vehicle action to **Import Records** and added explicit guidance:
   MyGarage JSON exports restore supported vehicle data, while PDFs create one
   maintenance/service visit.
 - Added a terminal-style upload and processing console with progress, readable
   extraction/parsing stages, and the exact reason an import completed, failed,
   or was skipped.
+- The import console now reports elapsed OCR time and periodic activity
+  heartbeats instead of appearing frozen during slower scanned-PDF analysis.
+- Added a File Management preference for automatically listing imported
+  maintenance PDFs under Documents, plus a per-upload override in the import
+  dialog. Successful PDFs remain attached to their service visit either way.
 - Simplified **System Logs** to a read-only, automatically updated view of the
   latest 1,000 backend lines for admins.
 

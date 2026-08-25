@@ -66,6 +66,21 @@ def _resolve_write_value(key: str, new_value: str, stored_value: str | None) -> 
     return new_value
 
 
+async def _reject_local_auth_without_admin(db: AsyncSession, key: str, value: str | None) -> None:
+    """Prevent the Settings auto-save flow from locking an empty installation."""
+    if key != "auth_mode" or value != "local":
+        return
+    user_count = (await db.execute(select(func.count(User.id)))).scalar_one()
+    if user_count == 0:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Create the first administrator account before enabling local authentication. "
+                "Open /register to complete setup."
+            ),
+        )
+
+
 @router.get("/public", response_model=SettingsListResponse)
 async def get_public_settings(db: AsyncSession = Depends(get_db)):
     """Get public settings (no authentication required).
@@ -79,7 +94,12 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
     initialization before login. All sensitive settings are excluded.
     """
     # Whitelist of public settings safe for unauthenticated access
-    public_keys = {"auth_mode", "app_name", "theme"}
+    public_keys = {
+        "auth_mode",
+        "app_name",
+        "theme",
+        "maintenance_import_save_to_documents",
+    }
 
     result = await db.execute(
         select(Setting).where(Setting.key.in_(public_keys)).order_by(Setting.key)
@@ -551,6 +571,7 @@ async def update_setting(
 
     # Update fields
     update_data = setting_update.model_dump(exclude_unset=True)
+    await _reject_local_auth_without_admin(db, key, update_data.get("value"))
 
     # Security: Log warning when disabling authentication
     if key == "auth_mode" and "value" in update_data:
@@ -584,6 +605,7 @@ async def batch_update_settings(
 ):
     """Batch update or create multiple settings (admin only)."""
     updated_settings = []
+    await _reject_local_auth_without_admin(db, "auth_mode", batch.settings.get("auth_mode"))
 
     # Security: Log warning when disabling authentication
     if "auth_mode" in batch.settings and batch.settings["auth_mode"] == "none":

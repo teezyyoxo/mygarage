@@ -40,3 +40,37 @@ def test_refuses_to_fabricate_a_service_date():
         parse_maintenance_text(
             "Performed engine oil and filter change after a complete vehicle inspection."
         )
+
+
+def test_parses_compact_dealership_ro_opened_date():
+    parsed = parse_maintenance_text(
+        """
+        227739
+        *INVOICE*
+        Hamden Chevrolet
+        Hamden Mazda Isuzu Truck
+        VIN JM3KKBHD8T1360502
+        MILEAGE IN/OUT
+        9725/9725
+        R.O. OPENED              READY
+        09:37 21JUL26            16:06 21JUL26
+        A CUSTOMER STATES INSTRUMENT CLUSTER/PANEL SEEMS TO REBOOT WHILE DRIVING
+        TECHNICIAN SCANNED VEHICLE FOR CODES AND CHECKED MGSS FOR INFORMATION
+        """
+    )
+
+    assert parsed["date"] == date(2026, 7, 21)
+    assert "R.O. OPENED" in parsed["date_source"].upper()
+    assert parsed["mileage"] == 9725
+    assert parsed["invoice_number"] == "227739"
+    assert "Inspection / diagnostic" in parsed["description"]
+
+
+def test_incomplete_preview_returns_editable_blank_fields():
+    parsed = parse_maintenance_text(
+        "Performed engine oil and filter change after a complete vehicle inspection.",
+        require_complete=False,
+    )
+
+    assert parsed["date"] is None
+    assert parsed["description"] == "Oil service / Inspection / diagnostic"

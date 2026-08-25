@@ -22,6 +22,7 @@ export default function SettingsFilesTab() {
 
   const [formData, setFormData] = useState({
     max_upload_size_mb: '10',
+    maintenance_import_save_to_documents: 'true',
     allowed_photo_types: ['jpg', 'jpeg', 'png', 'webp'],
     allowed_attachment_types: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
     window_sticker_enabled: 'true',
@@ -41,6 +42,7 @@ export default function SettingsFilesTab() {
 
       const newFormData = {
         max_upload_size_mb: settingsMap['max_upload_size_mb'] || '10',
+        maintenance_import_save_to_documents: settingsMap['maintenance_import_save_to_documents'] || 'true',
         allowed_photo_types: settingsMap['allowed_photo_types']
           ? settingsMap['allowed_photo_types'].split(',')
           : ['jpg', 'jpeg', 'png', 'webp'],
@@ -68,6 +70,7 @@ export default function SettingsFilesTab() {
     await api.post('/settings/batch', {
       settings: {
         max_upload_size_mb: formData.max_upload_size_mb,
+        maintenance_import_save_to_documents: formData.maintenance_import_save_to_documents,
         allowed_photo_types: formData.allowed_photo_types.join(','),
         allowed_attachment_types: formData.allowed_attachment_types.join(','),
         window_sticker_enabled: formData.window_sticker_enabled,
@@ -158,6 +161,17 @@ export default function SettingsFilesTab() {
           </div>
 
           <div className="space-y-6">
+          <div>
+            <Toggle
+              label={t('files.saveMaintenanceImports')}
+              checked={formData.maintenance_import_save_to_documents === 'true'}
+              onChange={(next) => setFormData({ ...formData, maintenance_import_save_to_documents: next ? 'true' : 'false' })}
+            />
+            <p className="mt-1 text-sm text-garage-text-muted">
+              {t('files.saveMaintenanceImportsDesc')}
+            </p>
+          </div>
+
           {/* Max Upload Size */}
           <div>
             <label htmlFor="max_upload_size" className="block text-sm font-medium text-garage-text mb-2">

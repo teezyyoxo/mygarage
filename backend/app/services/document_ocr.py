@@ -182,7 +182,7 @@ class DocumentOCRService:
     async def _extract_text_from_pdf(self, file_path: str) -> str:
         """Extract text from a PDF file using PyMuPDF."""
         try:
-            import fitz  # PyMuPDF
+            import pymupdf as fitz
 
             text_content = []
             with fitz.open(file_path) as doc:
@@ -211,7 +211,7 @@ class DocumentOCRService:
     async def _extract_text_from_pdf_bytes(self, pdf_bytes: bytes) -> str:
         """Extract text from PDF bytes."""
         try:
-            import fitz  # PyMuPDF
+            import pymupdf as fitz
 
             text_content = []
             with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
@@ -238,7 +238,7 @@ class DocumentOCRService:
     async def _ocr_pdf(self, file_path: str) -> str:
         """OCR a PDF by converting to images first."""
         try:
-            import fitz  # PyMuPDF
+            import pymupdf as fitz
 
             text_content = []
             with fitz.open(file_path) as doc:
@@ -257,7 +257,7 @@ class DocumentOCRService:
     async def _ocr_pdf_bytes(self, pdf_bytes: bytes) -> str:
         """OCR a PDF from bytes."""
         try:
-            import fitz
+            import pymupdf as fitz
 
             text_content = []
             with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
@@ -396,7 +396,7 @@ class DocumentOCRService:
         }
 
         try:
-            import fitz  # noqa: F401  # type: ignore[reportUnusedImport]
+            import pymupdf  # noqa: F401  # type: ignore[reportUnusedImport]
 
             status["pymupdf_available"] = True
         except ImportError:

@@ -13,6 +13,7 @@ import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
 import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
 import SystemLogsPanel from '@/components/SystemLogsPanel'
 import { Select, Toggle } from '../ui'
+import { withBase } from '@/utils/basePath'
 
 type RawSetting = {
   key: string
@@ -278,6 +279,15 @@ export default function SettingsSystemTab() {
 
     await api.post('/settings/batch', { settings: nonOidcSettings })
 
+    if (
+      loadedFormData?.auth_mode === 'none' &&
+      formData.auth_mode === 'local' &&
+      authEverEnabled
+    ) {
+      window.location.href = withBase('/login')
+      return
+    }
+
     const restartRequired = formData.debug !== 'false'
     if (restartRequired) {
       setMessage({
@@ -286,7 +296,7 @@ export default function SettingsSystemTab() {
       })
       setTimeout(() => setMessage(null), 5000)
     }
-  }, [formData, loadedFormData])
+  }, [formData, loadedFormData, authEverEnabled])
 
   // Handle unit preference change
   const handleUnitPreferenceChange = async (system: 'imperial' | 'metric') => {
@@ -777,9 +787,6 @@ export default function SettingsSystemTab() {
         )}
       </div>
 
-      {/* Everyone can discover the card, but only admins mount the live feed. */}
-      <SystemLogsPanel locked={!isAdmin} />
-
       {/* Mobile Experience Card */}
       {isAuthenticated && (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-4">
@@ -958,7 +965,13 @@ export default function SettingsSystemTab() {
               {t('auth.none')}
             </button>
             <button
-              onClick={() => setFormData({ ...formData, auth_mode: 'local', oidc_enabled: 'false' })}
+              onClick={() => {
+                if (!authEverEnabled) {
+                  window.location.href = withBase('/register')
+                  return
+                }
+                setFormData({ ...formData, auth_mode: 'local', oidc_enabled: 'false' })
+              }}
               className={`px-6 py-4 font-medium transition-colors whitespace-nowrap border-b-2 ${
                 formData.auth_mode === 'local'
                   ? 'border-primary text-primary'
@@ -1087,6 +1100,9 @@ export default function SettingsSystemTab() {
         {/* Archived Vehicles List */}
         <ArchivedVehiclesList />
       </div>
+
+      {/* Everyone can discover the card, but only admins mount the live feed. */}
+      <SystemLogsPanel locked={!isAdmin} />
       </div>
       </div>
 

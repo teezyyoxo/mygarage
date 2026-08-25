@@ -1409,6 +1409,42 @@
         "title": "Body_import_vehicle_json_api_import_vehicles__vin__json_post",
         "type": "object"
       },
+      "Body_import_vehicle_pdf_api_import_vehicles__vin__pdf_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "reviewed_fields": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed Fields"
+          },
+          "save_to_documents": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Save To Documents"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_vehicle_pdf_api_import_vehicles__vin__pdf_post",
+        "type": "object"
+      },
       "Body_import_warranties_csv_api_import_vehicles__vin__warranties_csv_post": {
         "properties": {
           "file": {
@@ -1440,6 +1476,20 @@
           "file"
         ],
         "title": "Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post",
+        "type": "object"
+      },
+      "Body_preview_vehicle_pdf_api_import_vehicles__vin__pdf_preview_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_preview_vehicle_pdf_api_import_vehicles__vin__pdf_preview_post",
         "type": "object"
       },
       "Body_test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post": {
@@ -10697,6 +10747,24 @@
         "title": "SeasonalAnalyticsSummary",
         "type": "object"
       },
+      "ServiceCategoryListResponse": {
+        "description": "Response for the fleet-wide service category suggestion list.",
+        "properties": {
+          "categories": {
+            "description": "Default plus fleet-used category names",
+            "items": {
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "ServiceCategoryListResponse",
+        "type": "object"
+      },
       "ServiceHistoryItem": {
         "description": "Service history timeline item.",
         "properties": {
@@ -10801,13 +10869,7 @@
           "category": {
             "anyOf": [
               {
-                "enum": [
-                  "Maintenance",
-                  "Inspection",
-                  "Collision",
-                  "Upgrades",
-                  "Detailing"
-                ],
+                "maxLength": 30,
                 "type": "string"
               },
               {
@@ -10964,13 +11026,7 @@
           "category": {
             "anyOf": [
               {
-                "enum": [
-                  "Maintenance",
-                  "Inspection",
-                  "Collision",
-                  "Upgrades",
-                  "Detailing"
-                ],
+                "maxLength": 30,
                 "type": "string"
               },
               {
@@ -11113,13 +11169,7 @@
           "category": {
             "anyOf": [
               {
-                "enum": [
-                  "Maintenance",
-                  "Inspection",
-                  "Collision",
-                  "Upgrades",
-                  "Detailing"
-                ],
+                "maxLength": 30,
                 "type": "string"
               },
               {
@@ -11424,13 +11474,7 @@
           "service_category": {
             "anyOf": [
               {
-                "enum": [
-                  "Maintenance",
-                  "Inspection",
-                  "Collision",
-                  "Upgrades",
-                  "Detailing"
-                ],
+                "maxLength": 30,
                 "type": "string"
               },
               {
@@ -11733,13 +11777,7 @@
           "service_category": {
             "anyOf": [
               {
-                "enum": [
-                  "Maintenance",
-                  "Inspection",
-                  "Collision",
-                  "Upgrades",
-                  "Detailing"
-                ],
+                "maxLength": 30,
                 "type": "string"
               },
               {
@@ -11964,13 +12002,6 @@
           "service_category": {
             "anyOf": [
               {
-                "enum": [
-                  "Maintenance",
-                  "Inspection",
-                  "Collision",
-                  "Upgrades",
-                  "Detailing"
-                ],
                 "type": "string"
               },
               {
@@ -24112,6 +24143,115 @@
         ]
       }
     },
+    "/api/backup/import/preview": {
+      "post": {
+        "description": "Preview a staged full backup before merge or replace.",
+        "operationId": "preview_import_api_backup_import_preview_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Import Api Backup Import Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Import",
+        "tags": [
+          "Backup"
+        ]
+      }
+    },
+    "/api/backup/import/{mode}": {
+      "post": {
+        "description": "Apply a staged full backup using explicit merge or replace mode.",
+        "operationId": "import_backup_api_backup_import__mode__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mode",
+            "required": true,
+            "schema": {
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Import Backup Api Backup Import  Mode  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Backup",
+        "tags": [
+          "Backup"
+        ]
+      }
+    },
     "/api/backup/list": {
       "get": {
         "description": "List all available backup files.\n\nArgs:\n    backup_type: Type of backups to list - \"settings\", \"full\", or \"all\"\n\nReturns:\n    List of backup files with metadata (filename, type, size, created date).",
@@ -25988,6 +26128,126 @@
         ]
       }
     },
+    "/api/import/vehicles/{vin}/pdf": {
+      "post": {
+        "description": "Import one maintenance/service visit from a PDF and attach the original.",
+        "operationId": "import_vehicle_pdf_api_import_vehicles__vin__pdf_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_vehicle_pdf_api_import_vehicles__vin__pdf_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Import Vehicle Pdf Api Import Vehicles  Vin  Pdf Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Vehicle Pdf",
+        "tags": [
+          "import"
+        ]
+      }
+    },
+    "/api/import/vehicles/{vin}/pdf/preview": {
+      "post": {
+        "description": "OCR a maintenance PDF and return editable fields without changing data.",
+        "operationId": "preview_vehicle_pdf_api_import_vehicles__vin__pdf_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_preview_vehicle_pdf_api_import_vehicles__vin__pdf_preview_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Vehicle Pdf Api Import Vehicles  Vin  Pdf Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Vehicle Pdf",
+        "tags": [
+          "import"
+        ]
+      }
+    },
     "/api/import/vehicles/{vin}/service/csv": {
       "post": {
         "description": "Import service records from CSV file (creates ServiceVisit + ServiceLineItem).",
@@ -26182,6 +26442,112 @@
         "summary": "List Insurance Parsers",
         "tags": [
           "Insurance"
+        ]
+      }
+    },
+    "/api/integration/v1/vehicle-hub/health": {
+      "get": {
+        "operationId": "integration_health_api_integration_v1_vehicle_hub_health_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Integration Health",
+        "tags": [
+          "Vehicle Hub"
+        ]
+      }
+    },
+    "/api/integration/v1/vehicle-hub/service-records": {
+      "post": {
+        "operationId": "apply_reviewed_records_api_integration_v1_vehicle_hub_service_records_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Reviewed Records",
+        "tags": [
+          "Vehicle Hub"
         ]
       }
     },
@@ -27770,6 +28136,33 @@
         ]
       }
     },
+    "/api/service-categories": {
+      "get": {
+        "description": "Get the built-in default categories plus every custom category any vehicle\nin the fleet has used, so the category field can offer the same\ntype-your-own-or-pick-one experience as the line-item description field.\n\n**Returns:**\n- Deduplicated list of category names: defaults first (in their usual\n  order), then custom fleet-used values sorted alphabetically.",
+        "operationId": "list_service_categories_api_service_categories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceCategoryListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Service Categories",
+        "tags": [
+          "Service Visits"
+        ]
+      }
+    },
     "/api/service-visits/{visit_id}/attachments": {
       "get": {
         "description": "Get all attachments for a service visit.",
@@ -28262,6 +28655,75 @@
           }
         ],
         "summary": "Get System Info",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/settings/system/logs": {
+      "get": {
+        "description": "Get recent live server logs from the in-memory ring buffer (admin only).\n\nLogs are otherwise stdout/stderr-only; this lets the Settings -> System\npage show what the backend is doing right now (e.g. a failed import that\notherwise returns a silent zero-imported result).",
+        "operationId": "get_system_logs_api_settings_system_logs_get",
+        "parameters": [
+          {
+            "description": "Maximum log lines to return",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "description": "Maximum log lines to return",
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Only return log lines newer than this id, for incremental polling",
+            "in": "query",
+            "name": "after_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only return log lines newer than this id, for incremental polling",
+              "title": "After Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get System Logs",
         "tags": [
           "Settings"
         ]
@@ -29577,6 +30039,257 @@
         "summary": "List Widget Vehicles",
         "tags": [
           "widget-v2"
+        ]
+      }
+    },
+    "/api/vehicle-hub/apply": {
+      "post": {
+        "operationId": "apply_review_api_vehicle_hub_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Apply Review",
+        "tags": [
+          "Vehicle Hub Review"
+        ]
+      }
+    },
+    "/api/vehicle-hub/connection": {
+      "post": {
+        "description": "Re-test and persist one exact VIN + Command URL pair.",
+        "operationId": "save_connection_api_vehicle_hub_connection_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Connection Api Vehicle Hub Connection Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save Connection",
+        "tags": [
+          "Vehicle Hub Review"
+        ]
+      }
+    },
+    "/api/vehicle-hub/reconcile": {
+      "post": {
+        "operationId": "reconcile_api_vehicle_hub_reconcile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reconcile",
+        "tags": [
+          "Vehicle Hub Review"
+        ]
+      }
+    },
+    "/api/vehicle-hub/scope": {
+      "get": {
+        "operationId": "scope_api_vehicle_hub_scope_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "vehicleVin",
+            "required": true,
+            "schema": {
+              "title": "Vehiclevin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "title": "Response Scope Api Vehicle Hub Scope Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Scope",
+        "tags": [
+          "Vehicle Hub Review"
+        ]
+      }
+    },
+    "/api/vehicle-hub/test-connection": {
+      "post": {
+        "operationId": "test_connection_api_vehicle_hub_test_connection_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Test Connection Api Vehicle Hub Test Connection Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Test Connection",
+        "tags": [
+          "Vehicle Hub Review"
         ]
       }
     },
@@ -38127,6 +38840,23 @@
         "tags": [
           "Vendors"
         ]
+      }
+    },
+    "/api/version": {
+      "get": {
+        "description": "Public runtime identity for deployment and support diagnostics.",
+        "operationId": "version_info_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Version Info"
       }
     },
     "/api/vin/decode": {

@@ -25,7 +25,8 @@
     "autoScroll": "Auto-scroll",
     "levelFilter": "Level",
     "allLevels": "All levels",
-    "loadError": "Couldn't load server logs."
+    "loadError": "Couldn't load server logs.",
+    "protectedPlaceholder": "Protected system diagnostic output is available to administrators."
   },
   "timezone": {
     "label": "Timezone",
@@ -121,6 +122,8 @@
     "timeError": "Failed to save time format"
   },
   "files": {
+    "saveMaintenanceImports": "Save maintenance imports to Documents",
+    "saveMaintenanceImportsDesc": "Keep an additional Documents entry for imported PDFs. The PDF remains attached to a successfully created service visit either way.",
     "title": "File Management",
     "description": "Configure file upload limits, allowed file types, and storage settings.",
     "loading": "Loading file settings...",
@@ -168,6 +171,7 @@
     "vehicleHub": "Vehicle Hub / CarChief Command",
     "vehicleHubDesc": "Connect reviewed service-history transfers to a specific Command vehicle and server.",
     "vehicleHubVin": "Command vehicle VIN",
+    "vehicleHubVinPlaceholder": "17-character VIN",
     "vehicleHubVinDesc": "Test Connection verifies the exact VIN and Command URL pair. Save is enabled only after the values change and that pair passes its test.",
     "vehicleHubCommandUrl": "Command URL and port",
     "vehicleHubCommandUrlDesc": "Enter the Command web/API origin, including its port (for example, http://deskmini.local:5300). Port 8788 belongs to the private Vehicle Hub sync listener, not Command.",

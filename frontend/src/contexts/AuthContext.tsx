@@ -150,6 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode}) {
 
   const register = async (username: string, email: string, password: string) => {
     await api.post('/auth/register', { username, email, password })
+    setAuthMode('local')
+    setApiAuthMode('local')
     // Registration successful - user needs to login
   }
 
