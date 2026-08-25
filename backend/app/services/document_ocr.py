@@ -8,7 +8,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from app.services.document_parsers import (
     DocumentParserRegistry,
@@ -285,12 +285,10 @@ class DocumentOCRService:
 
         # Fallback to Tesseract (offload CPU-intensive OCR to thread pool)
         try:
-            import pytesseract
             from PIL import Image
 
             image = await asyncio.to_thread(Image.open, file_path)
-            text = await asyncio.to_thread(pytesseract.image_to_string, image)
-            return str(text)
+            return await asyncio.to_thread(self._tesseract_confident_text, image)
         except ImportError:
             logger.warning("PIL or pytesseract not installed")
             return ""
@@ -312,14 +310,68 @@ class DocumentOCRService:
         try:
             import io
 
-            import pytesseract
             from PIL import Image
 
             image = Image.open(io.BytesIO(img_bytes))
-            return str(await asyncio.to_thread(pytesseract.image_to_string, image))
+            return await asyncio.to_thread(self._tesseract_confident_text, image)
         except Exception as e:
             logger.error("Error OCR-ing image bytes: %s", e)
             return ""
+
+    @staticmethod
+    def _tesseract_confident_text(image: Any) -> str:
+        """Return layout-preserving OCR text while rejecting low-confidence guesses."""
+        import pytesseract
+        from PIL import Image, ImageFilter, ImageOps
+
+        prepared = ImageOps.exif_transpose(image).convert("L")
+        prepared = ImageOps.autocontrast(prepared, cutoff=1).filter(ImageFilter.SHARPEN)
+        if prepared.width < 2000:
+            scale = 2000 / max(prepared.width, 1)
+            prepared = prepared.resize(
+                (2000, max(1, round(prepared.height * scale))),
+                resample=Image.Resampling.LANCZOS,
+            )
+
+        data = cast(
+            dict[str, list[Any]],
+            pytesseract.image_to_data(
+                prepared,
+                output_type=pytesseract.Output.DICT,
+                config="--oem 1 --psm 6 -c preserve_interword_spaces=1",
+                lang="eng",
+            ),
+        )
+        grouped: dict[tuple[int, int, int, int], list[tuple[int, str]]] = {}
+        rejected = 0
+        for index, raw_text in enumerate(data.get("text", [])):
+            word = str(raw_text or "").strip()
+            try:
+                confidence = float(data["conf"][index])
+            except (KeyError, IndexError, TypeError, ValueError):
+                confidence = -1
+            if not word or confidence < 35:
+                rejected += int(bool(word))
+                continue
+            key = (
+                int(data["page_num"][index]),
+                int(data["block_num"][index]),
+                int(data["par_num"][index]),
+                int(data["line_num"][index]),
+            )
+            grouped.setdefault(key, []).append((int(data["left"][index]), word))
+
+        lines = [
+            " ".join(word for _left, word in sorted(words))
+            for _key, words in sorted(grouped.items())
+            if words
+        ]
+        logger.info(
+            "Tesseract retained %s layout lines and rejected %s low-confidence tokens",
+            len(lines),
+            rejected,
+        )
+        return "\n".join(lines)
 
     async def _paddleocr_extract(self, file_path: str) -> str:
         """Extract text using PaddleOCR."""

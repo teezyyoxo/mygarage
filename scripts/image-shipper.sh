@@ -5,7 +5,7 @@
 
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.1.0"
+SCRIPT_VERSION="1.2.0"
 
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
@@ -25,11 +25,14 @@ Passing `.` selects Compose deployment in the remote SSH user's current
 directory. Any other positional path selects that remote Compose directory.
 
 Selection/build:
+  --deploy TARGET           Build TARGET, ship it, and recreate its Compose service
+  --build                   Build before shipping (implied by --deploy)
   --image IMAGE             Existing local image reference to ship
   --build-context PATH      Build locally from this context before shipping
   --dockerfile PATH         Dockerfile/Containerfile path for the local build
   --tag IMAGE               Tag assigned to the locally built image
   --build-option VALUE      One docker/podman build argument; repeat as needed
+  --platform PLATFORM       native, amd64, arm64, or linux/ARCH
   --engine docker|podman    Local engine (auto-detected or prompted otherwise)
 
 Destination:
@@ -55,13 +58,13 @@ Information:
   -h, --help                Show this help
 
 Examples:
-  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.5
+  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.6
 
   scripts/image-shipper.sh . --image vehicle-hub_mygarage:latest \
     --host deskmini --user montel --compose-service mygarage \
     --compose-restart vehicle-hub-gateway
 
-  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.5 \
+  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.6 \
     --build-option=--build-arg --build-option=BUILD_COMMIT=abc1234
 
   scripts/image-shipper.sh --image myapp:latest --host server.example.test \
@@ -80,6 +83,14 @@ EOF
 changelog() {
   cat <<'EOF'
 Image Shipper changelog
+
+1.2.0 — 2026-08-25
+  • Added --deploy TARGET as a streamlined build, ship, Compose recreate, and
+    verification workflow. It implies --build and infers MyGarage defaults.
+  • Added target-platform selection plus safe reuse of /tmp image archives
+    when their sidecar image ID matches the current local image.
+  • Compose projects are preflighted before transfer, and `.` can discover a
+    matching Compose project beneath the remote user's home directory.
 
 1.1.0 — 2026-08-25
   • Added remote Compose deployment: after loading an image, the shipper can
@@ -204,6 +215,63 @@ fi'
   "${ssh_cmd[@]}" "$target" "sh -c $probe_q sh $requested_q"
 }
 
+resolve_remote_compose_dir() {
+  local requested=$1 service=$2 requested_q service_q probe probe_q
+  requested_q=$(shell_quote "$requested")
+  service_q=$(shell_quote "$service")
+  probe='requested=$1
+service=$2
+
+has_compose_file() {
+  [ -f "$1/compose.yml" ] || [ -f "$1/compose.yaml" ] || \
+    [ -f "$1/docker-compose.yml" ] || [ -f "$1/docker-compose.yaml" ]
+}
+
+compose_file() {
+  for name in compose.yml compose.yaml docker-compose.yml docker-compose.yaml; do
+    if [ -f "$1/$name" ]; then printf "%s\n" "$1/$name"; return 0; fi
+  done
+  return 1
+}
+
+if [ -d "$requested" ] && has_compose_file "$requested"; then
+  file=$(compose_file "$requested") || exit 127
+  if grep -Eq "^[[:space:]]*$service[[:space:]]*:" "$file"; then
+    cd "$requested" && pwd -P
+    exit 0
+  fi
+fi
+
+matches=""
+for candidate in "$HOME" "$HOME"/* "$HOME"/*/* "$HOME"/*/*/*; do
+  [ -d "$candidate" ] || continue
+  has_compose_file "$candidate" || continue
+  file=$(compose_file "$candidate") || continue
+  if grep -Eq "^[[:space:]]*$service[[:space:]]*:" "$file"; then
+    resolved=$(cd "$candidate" && pwd -P) || continue
+    if [ -z "$matches" ]; then
+      matches=$resolved
+    else
+      matches="$matches
+$resolved"
+    fi
+  fi
+done
+
+count=$(printf "%s\n" "$matches" | awk "NF { count++ } END { print count + 0 }")
+if [ "$count" -eq 1 ]; then
+  printf "%s\n" "$matches"
+  exit 0
+fi
+if [ "$count" -gt 1 ]; then
+  printf "%s\n" "$matches" >&2
+  exit 2
+fi
+exit 127'
+  probe_q=$(shell_quote "$probe")
+  "${ssh_cmd[@]}" "$target" "sh -c $probe_q sh $requested_q $service_q"
+}
+
 human_bytes() {
   awk -v bytes="$1" 'BEGIN {
     split("B KiB MiB GiB TiB", units, " ")
@@ -289,6 +357,7 @@ select_existing_image() {
 local_engine=''; remote_engine=''; image=''; build_context=''; dockerfile=''; tag=''
 ssh_host=''; ssh_user=''; ssh_port='22'; remote_destination=''; container_name=''
 health_url=''; deploy_mode=''; compose_dir=''; compose_service=''; start_container=1; assume_yes=0
+fast_deploy=0; force_build=0; deploy_target=''; build_platform=''
 declare -a build_options run_options compose_restart_services
 build_options=(); run_options=(); compose_restart_services=()
 
@@ -298,6 +367,13 @@ while (($#)); do
     --engine=*) local_engine=${1#*=}; shift ;;
     --remote-engine) remote_engine=${2:?}; shift 2 ;;
     --remote-engine=*) remote_engine=${1#*=}; shift ;;
+    --deploy)
+      deploy_target=${2:-.}
+      if [[ "$deploy_target" == -* ]]; then deploy_target='.'; shift; else shift 2; fi
+      fast_deploy=1; force_build=1; deploy_mode=compose
+      ;;
+    --deploy=*) deploy_target=${1#*=}; fast_deploy=1; force_build=1; deploy_mode=compose; shift ;;
+    --build) force_build=1; shift ;;
     --image) image=${2:?}; shift 2 ;;
     --image=*) image=${1#*=}; shift ;;
     --build-context) build_context=${2:?}; shift 2 ;;
@@ -308,6 +384,8 @@ while (($#)); do
     --tag=*) tag=${1#*=}; shift ;;
     --build-option) build_options+=("${2:?}"); shift 2 ;;
     --build-option=*) build_options+=("${1#*=}"); shift ;;
+    --platform) build_platform=${2:?}; shift 2 ;;
+    --platform=*) build_platform=${1#*=}; shift ;;
     --host) ssh_host=${2:?}; shift 2 ;;
     --host=*) ssh_host=${1#*=}; shift ;;
     --user) ssh_user=${2:?}; shift 2 ;;
@@ -349,6 +427,66 @@ banner
 step 'Resolve local engine and image'
 local_engine=$(choose_local_engine "$local_engine")
 ok "Using local engine: $local_engine"
+
+if (( fast_deploy )); then
+  if [[ -d "$deploy_target" ]]; then
+    if [[ -f "$deploy_target/Dockerfile" ]]; then
+      build_context=$deploy_target
+      image=${image:-"$(basename "$(cd "$deploy_target" && pwd)"):latest"}
+    elif [[ -f "$deploy_target/mygarage/Dockerfile" ]]; then
+      build_context="$deploy_target/mygarage"
+      image=${image:-vehicle-hub_mygarage:latest}
+      compose_service=${compose_service:-mygarage}
+    else
+      die "--deploy directory has no Dockerfile: $deploy_target"
+    fi
+  else
+    image=$deploy_target
+    case "$image" in
+      *mygarage*)
+        script_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+        build_context=$script_root
+        compose_service=${compose_service:-mygarage}
+        ;;
+      *)
+        if [[ -z "$build_context" ]]; then
+          build_context=$(prompt_default 'Local build context' '.')
+        fi
+        [[ -f "$build_context/Dockerfile" ]] || die "Build context has no Dockerfile: $build_context"
+        ;;
+    esac
+  fi
+  tag=${tag:-$image}
+fi
+
+if (( force_build )) && [[ -z "$build_context" ]]; then
+  build_context=$(prompt_default 'Local build context' '.')
+fi
+
+if [[ -n "$build_context" ]]; then
+  if [[ -z "$build_platform" ]]; then
+    build_platform=$(prompt_default 'Build platform (native, amd64, arm64)' 'amd64')
+  fi
+  case "$build_platform" in
+    native) ;;
+    amd64|arm64) build_options+=(--platform "linux/$build_platform") ;;
+    linux/amd64|linux/arm64) build_options+=(--platform "$build_platform") ;;
+    *) die 'Build platform must be native, amd64, arm64, linux/amd64, or linux/arm64.' ;;
+  esac
+  if [[ "${image:-$tag}" == *mygarage* ]]; then
+    has_build_commit=0
+    if ((${#build_options[@]})); then
+      for build_option in "${build_options[@]}"; do
+        [[ "$build_option" == BUILD_COMMIT=* ]] && has_build_commit=1
+      done
+    fi
+    if (( ! has_build_commit )); then
+      build_commit=$(git -C "$build_context" rev-parse --short HEAD 2>/dev/null || true)
+      [[ -n "$build_commit" ]] || die 'Could not determine the MyGarage BUILD_COMMIT.'
+      build_options+=(--build-arg "BUILD_COMMIT=$build_commit")
+    fi
+  fi
+fi
 
 if [[ -n "$build_context" ]]; then
   [[ -d "$build_context" ]] || die "Build context does not exist: $build_context"
@@ -403,10 +541,14 @@ ok "Selected $image"
 step 'Collect destination and runtime details'
 ssh_host=$(prompt_required 'Target FQDN / hostname / IP' "$ssh_host")
 ssh_user=$(prompt_required 'SSH user' "$ssh_user")
-if [[ -z "$remote_destination" ]]; then
+if [[ -z "$remote_destination" && $fast_deploy -eq 1 ]]; then
+  remote_destination=/tmp
+elif [[ -z "$remote_destination" ]]; then
   remote_destination=$(prompt_default 'Remote image destination folder' '/tmp')
 fi
-ssh_port=$(prompt_default 'SSH port' "$ssh_port")
+if (( ! fast_deploy )); then
+  ssh_port=$(prompt_default 'SSH port' "$ssh_port")
+fi
 [[ "$ssh_port" =~ ^[0-9]+$ ]] || die 'SSH port must be numeric.'
 [[ "$remote_destination" == /* ]] || die 'Remote destination must be an absolute path.'
 target="$ssh_user@$ssh_host"
@@ -427,20 +569,37 @@ if [[ -z "$deploy_mode" ]]; then
 fi
 
 if [[ "$deploy_mode" == compose ]]; then
-  compose_dir=$(prompt_default 'Remote Compose project directory' "${compose_dir:-.}")
+  if (( fast_deploy )); then
+    compose_dir=${compose_dir:-.}
+  else
+    compose_dir=$(prompt_default 'Remote Compose project directory' "${compose_dir:-.}")
+  fi
   default_service=$(printf '%s' "$image" | sed 's|.*/||; s|[:@].*||; s|[^A-Za-z0-9_.-]|-|g')
   case "$image" in
     *mygarage*) default_service=mygarage ;;
     *vehicle-hub-sync*|*vehicle-hub_vehicle-hub-sync*) default_service=vehicle-hub-sync ;;
   esac
-  compose_service=$(prompt_default 'Compose service to recreate' "${compose_service:-$default_service}")
+  if (( fast_deploy )); then
+    compose_service=${compose_service:-$default_service}
+  else
+    compose_service=$(prompt_default 'Compose service to recreate' "${compose_service:-$default_service}")
+  fi
+  [[ "$compose_service" =~ ^[A-Za-z0-9_.-]+$ ]] || die 'Compose service contains invalid characters.'
   if ((${#compose_restart_services[@]} == 0)); then
     restart_default='-'
     [[ "$compose_service" == mygarage ]] && restart_default='vehicle-hub-gateway'
-    restart_service=$(prompt_default "Dependent Compose service to restart ('-' for none)" "$restart_default")
+    if (( fast_deploy )); then
+      restart_service=$restart_default
+    else
+      restart_service=$(prompt_default "Dependent Compose service to restart ('-' for none)" "$restart_default")
+    fi
     [[ "$restart_service" == '-' ]] || compose_restart_services+=("$restart_service")
   fi
-  health_url=$(prompt_default "HTTP health URL ('-' to skip)" "${health_url:--}")
+  if (( fast_deploy )); then
+    health_url=${health_url:--}
+  else
+    health_url=$(prompt_default "HTTP health URL ('-' to skip)" "${health_url:--}")
+  fi
 elif [[ "$deploy_mode" == standalone ]]; then
   default_name=$(printf '%s' "$image" | sed 's|.*/||; s|[:@].*||; s|[^A-Za-z0-9_.-]|-|g')
   container_name=$(prompt_default 'Remote container name' "${container_name:-$default_name}")
@@ -473,7 +632,8 @@ fi
 tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/image-shipper.XXXXXX")
 control_path="$tmp_dir/ssh-control"
 archive_slug=$(printf '%s' "$image" | sed 's|[^A-Za-z0-9_.-]|-|g')
-archive="$tmp_dir/${archive_slug}.tar.gz"
+archive="/tmp/${archive_slug}.tar.gz"
+archive_id_file="$archive.image-id"
 remote_archive="$remote_destination/${archive_slug}.tar.gz"
 declare -a ssh_cmd scp_cmd
 ssh_cmd=(ssh -p "$ssh_port" -o ControlMaster=auto -o ControlPersist=10m -o ControlPath="$control_path")
@@ -494,11 +654,36 @@ remote_engine=$(resolve_remote_engine "$requested_remote_engine") || die 'Docker
 remote_engine_q=$(shell_quote "$remote_engine")
 "${ssh_cmd[@]}" "$target" "test -x $remote_engine_q" || die "Remote engine is not executable: $remote_engine"
 ok "Authenticated; remote engine is $remote_engine"
+if [[ "$deploy_mode" == compose ]]; then
+  requested_compose_dir=$compose_dir
+  if ! compose_dir=$(resolve_remote_compose_dir "$requested_compose_dir" "$compose_service"); then
+    die "No unambiguous Compose project containing service '$compose_service' was found from '$requested_compose_dir'. Pass its remote path with --compose-dir."
+  fi
+  compose_dir_q=$(shell_quote "$compose_dir")
+  ok "Preflighted Compose project: $compose_dir"
+fi
 
 step 'Save and compress image'
-"$local_engine" save "$image" | gzip -1 > "$archive"
+reuse_archive=0
+if [[ -f "$archive" && -f "$archive_id_file" ]]; then
+  archived_image_id=$(<"$archive_id_file")
+  if [[ "$archived_image_id" == "$local_image_id" ]]; then
+    if (( fast_deploy )) || confirm "Reuse matching staged archive $archive?"; then
+      reuse_archive=1
+      ok "Reusing staged archive for image ID $local_image_id"
+    fi
+  else
+    warn "Ignoring stale staged archive for image ID ${archived_image_id:-unknown}."
+  fi
+elif [[ -f "$archive" ]]; then
+  warn 'Ignoring staged archive without a verifiable image-ID sidecar.'
+fi
+if (( ! reuse_archive )); then
+  "$local_engine" save "$image" | gzip -1 > "$archive"
+  printf '%s\n' "$local_image_id" > "$archive_id_file"
+fi
 archive_size=$(du -h "$archive" | awk '{print $1}')
-ok "Created $(basename "$archive") ($archive_size)"
+ok "Staged $(basename "$archive") ($archive_size)"
 
 step 'Transfer image archive with SCP'
 "${scp_cmd[@]}" "$archive" "$scp_target:$remote_archive"
@@ -605,6 +790,7 @@ step 'Deployment complete'
 field 'Image' "$image"
 field 'Remote host' "$ssh_host"
 field 'Archive retained' "$remote_archive"
+field 'Local archive' "$archive"
 if [[ "$deploy_mode" == compose ]]; then
   field 'Compose service' "$compose_service"
 elif [[ "$deploy_mode" == standalone ]]; then

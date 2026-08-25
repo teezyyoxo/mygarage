@@ -74,3 +74,38 @@ def test_incomplete_preview_returns_editable_blank_fields():
 
     assert parsed["date"] is None
     assert parsed["description"] == "Oil service / Inspection / diagnostic"
+
+
+def test_ro_opened_outranks_delivery_and_invoice_dates_and_cleans_notes():
+    parsed = parse_maintenance_text(
+        """
+        DEL. DATE        PROD DATE       WARR. EXP.       PROMISED       INV DATE
+        30DEC25          21NOV25         30DEC28          17:00 21JUL26  21JUL26
+        R.O. OPENED              READY
+        09:37 21JUL26            16:06 21JUL26
+        A CUSTOMER STATES INSTRUMENT CLUSTER/PANEL SEEMS TO REBOOT WHILE DRIVING
+        9725 TECHNICIAN SCANNED VEHICLE FOR CODES AND CHECKED MGSS FOR
+        INFORMATION RELATED TO CUSTOMER'S CONCERN. NO CODES STORED IN DTC OR
+        TSB AT THIS TIME. ADVISED CUSTOMER TO RETURN IF CONCERN PERSISTS
+        MULTI-POINT INSPECTION REPORT - GOOD - REQUIRES ATTENTION
+        """
+    )
+
+    assert parsed["date"] == date(2026, 7, 21)
+    assert parsed["date_source"] == "R.O. Opened"
+    assert "Technician scanned vehicle" in parsed["notes"]
+    assert "customer states" not in parsed["notes"].lower()
+    assert "multi-point" not in parsed["notes"].lower()
+    assert "DEL. DATE" not in parsed["notes"]
+
+
+def test_delivery_date_is_never_used_as_a_service_date_fallback():
+    parsed = parse_maintenance_text(
+        """
+        DEL. DATE 30DEC25
+        Vehicle received a multi-point inspection report.
+        """,
+        require_complete=False,
+    )
+
+    assert parsed["date"] is None

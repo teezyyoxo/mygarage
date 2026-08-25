@@ -105,35 +105,109 @@ def _shop(lines: list[str]) -> str | None:
     return None
 
 
+_DATE_LABELS: tuple[tuple[str, str], ...] = (
+    (r"R[./ ]?[O0][./ ]?\s*(?:Open(?:ed)?|Open Date)", "R.O. Opened"),
+    (r"Repair Order\s*(?:Open(?:ed)?|Date)", "repair-order open date"),
+    (r"Work Order\s*(?:Open(?:ed)?|Date)", "work-order date"),
+    (r"Date of Service|Service Date", "service date"),
+    (r"Repair Date|Check[ -]?in Date|Date In", "service intake date"),
+    (r"(?:Invoice|Inv[.]?)\s*Date", "invoice date"),
+    (r"R[./ ]?[O0][./ ]?\s*(?:Close(?:d)?|Close Date)", "R.O. close date"),
+    (r"Date Created", "date created"),
+    (r"Paid on", "payment date"),
+)
+_NON_SERVICE_DATE_LABEL = re.compile(
+    r"(?:DEL(?:IVERY)?[.]?\s*DATE|PROD(?:UCTION)?[.]?\s*DATE|WARR(?:ANTY)?[.]?\s*"
+    r"(?:EXP|DATE)|PROMISED|DOB|PURCHASE DATE)",
+    re.IGNORECASE,
+)
+
+
+def _service_date(lines: list[str]) -> tuple[date | None, str | None]:
+    """Resolve dates only from explicit service context, in strict priority order."""
+    for label_pattern, source in _DATE_LABELS:
+        label = re.compile(label_pattern, re.IGNORECASE)
+        for index, line in enumerate(lines):
+            match = label.search(line)
+            if not match or _NON_SERVICE_DATE_LABEL.search(line[: match.start()]):
+                continue
+            # Dealership tables commonly put the values on the next row. The
+            # first date beneath R.O. OPENED belongs to that left-most field.
+            candidates = [line[match.end() :], *lines[index + 1 : index + 3]]
+            for candidate in candidates:
+                if _NON_SERVICE_DATE_LABEL.search(candidate):
+                    continue
+                parsed = _date(candidate)
+                if parsed:
+                    return parsed, source
+    return None, None
+
+
+def _readable_sentence(value: str) -> str:
+    value = re.sub(r"\s+", " ", value).strip(" .:-")
+    if value.isupper() and len(value) > 8:
+        value = value.capitalize()
+        for acronym in ("DTC", "TSB", "VIN", "OEM", "ABS", "TPMS", "ECU", "A/C", "R.O."):
+            value = re.sub(rf"\b{re.escape(acronym)}\b", acronym, value, flags=re.I)
+    return value
+
+
 def _service_lines(lines: list[str]) -> list[str]:
     noise = re.compile(
-        r"^(?:invoice|customer|client|phone|email|vin|license|vehicle|odometer|mileage|"
-        r"subtotal|grand total|total due|amount paid|balance due|tax|page \d+|payment|"
-        r"repair order|r/?o\s*(?:number|#)|date)\b",
+        r"^(?:invoice|customer\s*(?:#|number|name|address)|client|phone|email|vin|license|"
+        r"vehicle|odometer|mileage|subtotal|grand total|total due|amount paid|balance due|"
+        r"tax|page \d+|payment|repair order|r/?o\s*(?:number|#)|date|parts?|labor|other|"
+        r"total line|color|year|make/model|service advisor|payment type)\b",
         re.IGNORECASE,
     )
-    useful = re.compile(
-        r"oil|filter|tire|tyre|brake|coolant|inspection|diagnos|replace|repair|service|"
-        r"maintenance|rotate|alignment|battery|fluid|belt|spark|flush|installed|performed|"
-        r"transmission|engine|air condition|a/?c\b|scan(?:ned|ning)?|codes?\b",
+    action = re.compile(
+        r"\b(?:performed|replaced|repaired|installed|serviced|changed|rotated|aligned|"
+        r"flushed|diagnos(?:ed|is)|inspect(?:ed|ion)|tested|scanned|checked|programmed|"
+        r"recalibrated|lubricated|cleaned|adjusted|torqued|no codes? (?:stored|found)|"
+        r"advised|remove(?:d)? and replace(?:d)?|r&r)\b",
+        re.IGNORECASE,
+    )
+    service_noun = re.compile(
+        r"\b(?:oil change|oil filter|lube oil filter|lof|air filter|cabin filter|tire|tyre|brake|coolant|"
+        r"alignment|battery|transmission|spark plug|fluid service|scheduled maintenance|"
+        r"diagnostic scan|state inspection|emissions inspection|rotate and balance)\b",
+        re.IGNORECASE,
+    )
+    irrelevant = re.compile(
+        r"\b(?:customer states|multipoint|multi-point|inspection report|excellent|good|"
+        r"requires attention|declined service|recommended service|factory spec|privacy|"
+        r"thank you for your business)\b",
+        re.IGNORECASE,
+    )
+    continuation = re.compile(
+        r"^(?:information|related|no codes?|no dtcs?|dtc|tsb|at this time|advised|"
+        r"verified|found|vehicle operating|concern)",
         re.IGNORECASE,
     )
     result: list[str] = []
     for line in lines:
         candidate = re.sub(r"^[✓✔#\d.:-]+\s*", "", line).strip()
+        candidate = re.sub(r"^\d{2,7}\s+(?=(?:technician|performed|replaced|checked))", "", candidate, flags=re.I)
         candidate = re.sub(r"\s+\$?[\d,]+\.\d{2}(?:\s+\$?[\d,]+\.\d{2})*$", "", candidate)
         looks_like_business_name = re.search(
             r"\b(?:LLC|LTD|INC|MOTORS|AUTOMOTIVE|SERVICE CENTER)\b", candidate, re.I
         ) and not re.search(r"performed|replaced|repaired|serviced|installed", candidate, re.I)
+        is_continuation = bool(result and continuation.search(candidate))
         if (
             4 <= len(candidate) <= 500
-            and useful.search(candidate)
+            and (action.search(candidate) or service_noun.search(candidate) or is_continuation)
             and not noise.search(candidate)
+            and not irrelevant.search(candidate)
             and not looks_like_business_name
-            and candidate not in result
         ):
-            result.append(candidate)
-    return result[:40]
+            readable = _readable_sentence(candidate)
+            if is_continuation:
+                if not re.match(r"^(?:DTC|TSB|VIN|OEM|ABS|TPMS|ECU|A/C)\b", readable):
+                    readable = readable[:1].lower() + readable[1:]
+                result[-1] = _readable_sentence(f"{result[-1]} {readable}")
+            elif readable.casefold() not in {entry.casefold() for entry in result}:
+                result.append(readable)
+    return [entry if entry.endswith((".", "!", "?")) else f"{entry}." for entry in result[:20]]
 
 
 def parse_maintenance_text(text: str, *, require_complete: bool = True) -> dict[str, Any]:
@@ -146,34 +220,7 @@ def parse_maintenance_text(text: str, *, require_complete: bool = True) -> dict[
         )
     normalized = "\n".join(lines)
 
-    service_date = None
-    date_source = None
-    close_date_pair = re.search(
-        r"R/?O Close Date\s+Status\s*\n\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
-        normalized,
-        re.IGNORECASE,
-    )
-    if close_date_pair:
-        service_date = _date(close_date_pair.group(1))
-        date_source = "R/O close date"
-    for pattern in (
-        r"R[./ ]?O[./ ]?\s*Opened[^\n]*\n\s*([^\n]+)",
-        r"R[./ ]?O[./ ]?\s*(?:Open Date|Opened)\s*:?\s*([^\n]+)",
-        r"R/?O Close Date\s*:?\s*([^\n]+)",
-        r"(?:Invoice|Inv[.]?)\s*Date\s*:?\s*([^\n]+)",
-        r"Service Date\s*:?\s*([^\n]+)",
-        r"Date Created\s*:?\s*([^\n]+)",
-        r"Paid on\s+([^\n]+)",
-    ):
-        if not service_date:
-            match = re.search(pattern, normalized, re.IGNORECASE)
-            if match and (service_date := _date(match.group(1))):
-                date_source = match.group(0).splitlines()[0][:80]
-                break
-    if not service_date:
-        service_date = next((_date(line) for line in lines[:45] if _date(line)), None)
-        if service_date:
-            date_source = "invoice header"
+    service_date, date_source = _service_date(lines)
     if not service_date and require_complete:
         raise MaintenancePdfParseError(
             "Maintenance details were found, but no recognizable service date was present."
@@ -264,7 +311,7 @@ def parse_maintenance_text(text: str, *, require_complete: bool = True) -> dict[
         "mileage_unit": mileage_unit,
         "total_cost": total,
         "description": " / ".join(detected[:2]) or (work[0][:200] if work else None),
-        "notes": "\n".join(work),
+        "notes": "\n".join(f"- {line}" for line in work),
         "shop": _shop(lines),
         "invoice_number": invoice_number,
     }

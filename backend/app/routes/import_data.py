@@ -251,8 +251,26 @@ async def preview_vehicle_pdf(
         warnings.append(str(exc))
     if parsed["date"] is None:
         warnings.append("No service date was recognized; choose it before importing.")
+    else:
+        logs.append(
+            {
+                "level": "success",
+                "message": (
+                    f"Selected service date {parsed['date'].isoformat()} from "
+                    f"{parsed['date_source'] or 'explicit service context'}."
+                ),
+            }
+        )
     if not parsed["description"]:
         warnings.append("No service description was recognized; enter one before importing.")
+    elif parsed["notes"]:
+        logs.append(
+            {
+                "level": "success",
+                "message": "Prepared cleaned work-performed notes; unrelated headers, totals, "
+                "customer details, and inspection-status boilerplate were omitted.",
+            }
+        )
     for warning in warnings:
         logs.append({"level": "warning", "message": warning})
     logs.append(

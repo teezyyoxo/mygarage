@@ -5,6 +5,41 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.6] - 2026-08-25
+
+### Fixed
+
+- Scanned maintenance PDFs now use contrast normalization, sharpening,
+  layout-preserving Tesseract word data, and a confidence threshold that drops
+  low-confidence invented tokens before parsing.
+- Service-date selection no longer falls back to the first date near the top
+  of an invoice. Explicit service context is required, **R.O. Opened** and
+  repair-order open dates have highest priority, and delivery, production,
+  warranty-expiration, promised, purchase, and birth dates are rejected.
+- Maintenance notes now contain a compact, deduplicated list of actual work
+  performed. Customer/address headers, totals, raw table data, customer-states
+  prose, and multipoint-inspection status boilerplate are excluded.
+- Image shipment no longer reaches the end of a large transfer before
+  discovering that `.` contains no Compose file. The destination project and
+  requested service are preflighted, with matching-project discovery beneath
+  the remote user's home directory.
+
+### Changed
+
+- The maintenance review console now identifies the exact labeled field used
+  for the proposed service date and reports when cleaned work notes were built.
+  Every parsed field remains editable and requires confirmation before import.
+- Matching compressed image archives are retained under `/tmp` and reused only
+  when their recorded immutable image ID matches the current local image;
+  stale or unverifiable archives are rebuilt.
+
+### Added
+
+- Added `deploy.sh ship --deploy TARGET`, a streamlined workflow that implies
+  a fresh platform-selectable build and continues through archive staging,
+  SSH/SCP transfer, remote image load, Compose service recreation, dependent
+  service restart, logs, and running-image identity verification.
+
 ## [3.1.5] - 2026-08-25
 
 ### Fixed
