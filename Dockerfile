@@ -16,7 +16,12 @@ ARG BUILD_COMMIT
 # — it is the allocator, not a missing/WASM fallback, so pinning a binding
 # would not help. Build-stage only: just dist/ is copied into the
 # python:3.14-slim runtime, so this costs the shipped image nothing.
-FROM oven/bun:${BUN_VERSION}-slim AS frontend-builder
+#
+# The frontend emits architecture-neutral static assets. Build it on the host
+# builder's native architecture so an amd64 deployment image built on an ARM
+# workstation does not run Bun/Rolldown under memory-heavy QEMU emulation. The
+# backend builder and final stage intentionally remain on TARGETPLATFORM.
+FROM --platform=${BUILDPLATFORM} oven/bun:${BUN_VERSION}-slim AS frontend-builder
 
 ARG BUILD_COMMIT
 ENV BUILD_COMMIT=${BUILD_COMMIT}
@@ -34,10 +39,11 @@ RUN bun install --frozen-lockfile
 # Copy frontend source
 COPY frontend/ ./
 
-# Build production bundle
-# Bun runs Vite, which produces identical output to Node.js version
+# Build production bundle. --smol makes Bun collect its JavaScript heap more
+# aggressively inside memory-constrained Docker/Podman builders. The emitted
+# Vite bundle is unchanged; only peak build memory and build time are affected.
 RUN test -n "$BUILD_COMMIT"
-RUN bun run build
+RUN bun --smol run build
 
 # Verify build output exists (fail fast if build failed)
 RUN test -d dist && test -f dist/index.html

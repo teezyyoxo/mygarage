@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Cross-platform image builds now compile the architecture-neutral frontend on
+  the builder's native platform instead of running Bun/Vite/Rolldown through
+  QEMU. Together with Bun's low-memory mode, this prevents transformation from
+  exhausting constrained Docker or Podman VMs when an ARM workstation targets
+  an amd64 deployment host.
 - Vehicle-level PDF import now explicitly imports a maintenance/service record
   for any vehicle, creates a service visit from recognized invoice fields, and
   attaches the original PDF to that visit. Exact duplicate PDFs are skipped
@@ -43,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path, image, engine, container name, run option, and URL is prompted or
   accepted as a command argument; no deployment target is hard-coded. The
   script includes its own `--changelog` and formatted `--help` output.
+- Image Shipper now accepts repeatable local build options and diagnoses
+  memory-exhaustion failures with the engine's available-memory total and a
+  retained build log, instead of ending at an unexplained SIGKILL.
 
 - Service visit category is now a fleet-suggested field like the line-item
   description: pick a built-in default (Maintenance, Inspection, Collision,

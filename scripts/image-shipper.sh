@@ -5,7 +5,7 @@
 
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.0.1"
 
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
@@ -26,6 +26,7 @@ Selection/build:
   --build-context PATH      Build locally from this context before shipping
   --dockerfile PATH         Dockerfile/Containerfile path for the local build
   --tag IMAGE               Tag assigned to the locally built image
+  --build-option VALUE      One docker/podman build argument; repeat as needed
   --engine docker|podman    Local engine (auto-detected or prompted otherwise)
 
 Destination:
@@ -49,6 +50,9 @@ Information:
 Examples:
   scripts/image-shipper.sh --build-context . --tag mygarage:3.1.4
 
+  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.4 \
+    --build-option=--build-arg --build-option=BUILD_COMMIT=abc1234
+
   scripts/image-shipper.sh --image myapp:latest --host server.example.test \
     --user deploy --destination /srv/images --container myapp \
     --run-option=--restart --run-option=unless-stopped \
@@ -65,6 +69,12 @@ EOF
 changelog() {
   cat <<'EOF'
 Image Shipper changelog
+
+1.0.1 — 2026-08-24
+  • Added repeatable --build-option arguments for build args, platform flags,
+    resource limits, and other Docker/Podman build settings.
+  • Added captured build diagnostics that recognize memory-exhaustion failures,
+    print the container engine's available memory, and retain the real exit code.
 
 1.0.0 — 2026-08-24
   • Added interactive Docker/Podman engine and image selection using both
@@ -118,6 +128,42 @@ shell_quote() {
   printf "'%s'" "${value//\'/\'\\\'\'}"
 }
 
+human_bytes() {
+  awk -v bytes="$1" 'BEGIN {
+    split("B KiB MiB GiB TiB", units, " ")
+    value = bytes + 0
+    unit = 1
+    while (value >= 1024 && unit < 5) { value /= 1024; unit++ }
+    printf "%.2f %s", value, units[unit]
+  }'
+}
+
+run_local_build() {
+  local engine=$1 build_file=$2 image_tag=$3 context=$4 build_status memory_bytes
+  local build_log
+  shift 4
+  build_log=$(mktemp "${TMPDIR:-/tmp}/image-shipper-build.XXXXXX")
+
+  if "$engine" build "$@" -f "$build_file" -t "$image_tag" "$context" 2>&1 | tee "$build_log"; then
+    rm -f "$build_log"
+    return 0
+  else
+    build_status=${PIPESTATUS[0]}
+  fi
+
+  if grep -Eiq 'cannot allocate memory|resourceexhausted|out of memory|oom|signal sigkill|(^|[[:space:]])killed([[:space:]]|$)' "$build_log"; then
+    printf '\n  %s%sMemory exhaustion detected during the image build.%s\n' "$C_RED" "$C_BOLD" "$C_RESET" >&2
+    memory_bytes=$("$engine" info --format '{{.MemTotal}}' 2>/dev/null || true)
+    if [[ "$memory_bytes" =~ ^[0-9]+$ ]]; then
+      field 'Engine memory' "$(human_bytes "$memory_bytes")" >&2
+    fi
+    printf '  Stop unneeded containers or increase the Docker/Podman VM memory, then retry.\n' >&2
+    printf '  MyGarage uses Bun low-memory mode automatically for its frontend build.\n' >&2
+  fi
+  printf '  %sBuild log:%s %s\n' "$C_DIM" "$C_RESET" "$build_log" >&2
+  return "$build_status"
+}
+
 choose_local_engine() {
   local requested=$1 have_docker=0 have_podman=0 choice
   command -v docker >/dev/null 2>&1 && have_docker=1
@@ -167,8 +213,8 @@ select_existing_image() {
 local_engine=''; remote_engine=''; image=''; build_context=''; dockerfile=''; tag=''
 ssh_host=''; ssh_user=''; ssh_port='22'; remote_destination=''; container_name=''
 health_url=''; start_container=1; assume_yes=0
-declare -a run_options
-run_options=()
+declare -a build_options run_options
+build_options=(); run_options=()
 
 while (($#)); do
   case "$1" in
@@ -184,6 +230,8 @@ while (($#)); do
     --dockerfile=*) dockerfile=${1#*=}; shift ;;
     --tag) tag=${2:?}; shift 2 ;;
     --tag=*) tag=${1#*=}; shift ;;
+    --build-option) build_options+=("${2:?}"); shift 2 ;;
+    --build-option=*) build_options+=("${1#*=}"); shift ;;
     --host) ssh_host=${2:?}; shift 2 ;;
     --host=*) ssh_host=${1#*=}; shift ;;
     --user) ssh_user=${2:?}; shift 2 ;;
@@ -224,7 +272,7 @@ if [[ -n "$build_context" ]]; then
   field 'Build context' "$build_context"
   field 'Build file' "$dockerfile"
   field 'Image tag' "$tag"
-  "$local_engine" build -f "$dockerfile" -t "$tag" "$build_context"
+  run_local_build "$local_engine" "$dockerfile" "$tag" "$build_context" "${build_options[@]}" || die "Local image build failed: $tag"
   image=$tag
   ok "Built $image"
 elif [[ -z "$image" ]]; then
@@ -237,7 +285,15 @@ elif [[ -z "$image" ]]; then
       dockerfile=$(prompt_default 'Dockerfile / Containerfile' "$build_context/Dockerfile")
       [[ -d "$build_context" ]] || die "Build context does not exist: $build_context"
       [[ -f "$dockerfile" ]] || die "Build file does not exist: $dockerfile"
-      "$local_engine" build -f "$dockerfile" -t "$tag" "$build_context"
+      if ((${#build_options[@]} == 0)); then
+        printf '  %sEnter optional build arguments separated by spaces.%s\n' "$C_DIM" "$C_RESET"
+        read -r -p "$(printf '%s?%s Build options (blank for none): ' "$C_CYAN" "$C_RESET")" build_option_line
+        if [[ -n "$build_option_line" ]]; then
+          # Intentional shell-word splitting without eval: no substitutions execute.
+          read -r -a build_options <<< "$build_option_line"
+        fi
+      fi
+      run_local_build "$local_engine" "$dockerfile" "$tag" "$build_context" "${build_options[@]}" || die "Local image build failed: $tag"
       image=$tag
       ;;
     2) image=$(select_existing_image "$local_engine" running) ;;
