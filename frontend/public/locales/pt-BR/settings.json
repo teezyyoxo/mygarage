@@ -50,8 +50,10 @@
   "mobile": {
     "title": "Interface móvel",
     "description": "Personalize o comportamento do aplicativo em dispositivos móveis.",
-    "quickEntry": "Entrada rápida em dispositivos móveis",
-    "quickEntryDescription": "Ao fazer login em um dispositivo móvel, ir diretamente para a Entrada Rápida em vez do painel de controle"
+    "startPage": "Página inicial no celular",
+    "startPageDescription": "Escolha a primeira página que o MyGarage abre no celular após o login.",
+    "dashboard": "Painel",
+    "quickEntry": "Entrada rápida"
   },
   "family": {
     "title": "Gestão familiar",

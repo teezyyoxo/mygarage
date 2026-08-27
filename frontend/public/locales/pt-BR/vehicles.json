@@ -484,6 +484,8 @@
     "serviceVisitDesc": "Registre uma manutenção ou reparo",
     "title": "Entrada rápida",
     "vehicle": "Veículo",
+    "viewVehicle": "Abrir {{vehicle}}",
+    "viewVehicleDetails": "Ver detalhes do veículo",
     "whatLogging": "O que vamos registrar?"
   },
   "recallList": {

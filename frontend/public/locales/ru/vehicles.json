@@ -484,6 +484,8 @@
     "serviceVisitDesc": "Кнопка сервисного визита",
     "title": "Быстрая запись",
     "vehicle": "Транспортное средство",
+    "viewVehicle": "Открыть {{vehicle}}",
+    "viewVehicleDetails": "Просмотреть сведения о транспортном средстве",
     "whatLogging": "Что регистрируем?"
   },
   "recallList": {

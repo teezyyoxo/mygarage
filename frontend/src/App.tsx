@@ -95,7 +95,7 @@ function App() {
 
                 {/* Protected routes */}
                 <Route element={<ProtectedRoute />}>
-                  {/* Quick Entry: protected but no Layout (mobile-optimized, minimal chrome) */}
+                  {/* Quick Entry: protected, with its own safe mobile header + bottom navigation. */}
                   <Route path="/quick-entry" element={<QuickEntry />} />
 
                   <Route path="/" element={<Layout />}>

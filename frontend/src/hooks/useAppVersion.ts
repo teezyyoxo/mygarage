@@ -12,7 +12,7 @@ interface AppInfo {
  * Returns the version string or a fallback if the API call fails.
  */
 export function useAppVersion(): string {
-  const [version, setVersion] = useState<string>('3.1.6') // Fallback version
+  const [version, setVersion] = useState<string>('3.1.7') // Fallback version
 
   useEffect(() => {
     api.get('/health')

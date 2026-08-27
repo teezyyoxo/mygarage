@@ -279,7 +279,7 @@ export default function Drawer({
         aria-label={title}
         data-testid="drawer"
         tabIndex={-1}
-        className={`fixed right-0 top-0 ${panelZ} flex h-full flex-col border-l border-border bg-surface shadow-drawer transition-transform duration-(--duration-drawer) ease-standard motion-reduce:transition-none ${
+        className={`fixed right-0 top-0 ${panelZ} flex h-full flex-col border-l border-border bg-surface pt-safe-top pr-safe-right pb-safe-bottom shadow-drawer transition-transform duration-(--duration-drawer) ease-standard motion-reduce:transition-none ${
           entered ? 'translate-x-0' : 'translate-x-full'
         } ${WIDTH[width]}`}
       >

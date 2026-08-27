@@ -123,28 +123,13 @@ test.describe('P2 band model', () => {
 
 test.describe('P10 mobile account access', () => {
   // The Quick Settings gear is visible at phone width (band table above), and it is the
-  // ONLY route to logout and the accent picker below 768px. Prove the full logout path
-  // works there — a jsdom unit test can assert the drawer's row but never that the gear
-  // is reachable at 375px. e2e auth is local + signed in (seed.ts), so the row renders.
-  //
-  // The journey is deliberately the REAL one, not a shortcut to "/". `User.
-  // mobile_quick_entry_enabled` defaults to True, so on a phone a fresh session is
-  // redirected off "/" to /quick-entry by MobileQuickEntryGate — which renders a minimal
-  // header with no gear and no logout. Tapping "Dashboard" there is therefore the only
-  // route a phone user has to logout, and it works because QuickEntry sets the
-  // `qe_redirected:<id>` session flag on mount, which lets the gate fall through.
-  // Driving that path also covers the escape hatch itself: if the flag or the Dashboard
-  // link ever broke, a phone user would be trapped on /quick-entry with no way to sign
-  // out, and this is the only test that would catch it. Going straight to "/" instead
-  // races the redirect — the click lands, then the gate unmounts the whole shell and the
-  // Logout button detaches mid-click.
+  // primary route to logout and the accent picker below 768px. New users now start on
+  // Dashboard by default, while Quick Entry carries the same bottom navigation as an
+  // escape hatch. Prove the full Dashboard logout path works at phone width.
   test('logout is reachable via Quick Settings at phone width', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 900 })
     await page.goto('/')
 
-    // Phone + fresh session ⇒ the gate MUST bounce us to Quick Entry.
-    await page.waitForURL('**/quick-entry')
-    await page.getByRole('link', { name: 'Dashboard' }).click()
     await expect(page).toHaveURL(/\/$/)
     await page.waitForSelector('header')
 

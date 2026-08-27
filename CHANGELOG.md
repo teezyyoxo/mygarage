@@ -5,6 +5,26 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.7] - 2026-08-27
+
+### Fixed
+
+- iPhone standalone mode now keeps the app header below the status bar and the
+  fixed mobile navigation above the home indicator by consuming all four safe
+  area insets. Drawer forms use those insets as well.
+- Quick Entry now includes the seven-tab mobile navigation instead of bypassing
+  the application shell, and the tabs remain fully tappable without horizontal
+  overflow down to a 320px viewport.
+- A single auto-selected vehicle on Quick Entry is now a tappable link to its
+  details. Administrator Quick Entry lists every active vehicle, matching the
+  Dashboard and the administrator's write permissions.
+
+### Changed
+
+- Settings now offers a per-user **Mobile start page** choice between Dashboard
+  and Quick Entry. New users start on Dashboard; existing preferences remain
+  intact and can be changed at any time.
+
 ## [3.1.6] - 2026-08-25
 
 ### Fixed

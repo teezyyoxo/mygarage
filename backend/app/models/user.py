@@ -77,7 +77,7 @@ class User(Base):
     )  # 'light' or 'dark' (see frontend src/contexts/ThemeContext.tsx)
 
     # Mobile experience
-    mobile_quick_entry_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    mobile_quick_entry_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Fuel-tracking form defaults (issue #69 — extended fuel tracking).
     # Validated against PaymentMethod / TripType enums at the schema layer.

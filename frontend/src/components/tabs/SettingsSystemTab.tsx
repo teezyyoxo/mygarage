@@ -20,6 +20,8 @@ type RawSetting = {
   value?: string | null
 }
 
+type MobileStartPage = 'dashboard' | 'quick-entry'
+
 export default function SettingsSystemTab() {
   const { t } = useTranslation('settings')
   const { i18n } = useTranslation()
@@ -62,8 +64,8 @@ export default function SettingsSystemTab() {
   const [timeFormatSaving, setTimeFormatSaving] = useState(false)
 
   // Mobile experience state
-  const [mobileQuickEntry, setMobileQuickEntry] = useState(true)
-  const [mobileQuickEntrySaving, setMobileQuickEntrySaving] = useState(false)
+  const [mobileStartPage, setMobileStartPage] = useState<MobileStartPage>('dashboard')
+  const [mobileStartPageSaving, setMobileStartPageSaving] = useState(false)
 
   // Fuel-tracking form defaults (issue #69)
   const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<string>('')
@@ -193,7 +195,7 @@ export default function SettingsSystemTab() {
       setUnitPreference(currentUser.unit_preference || 'imperial')
       setShowBothUnits(currentUser.show_both_units || false)
       setTimeFormat(currentUser.time_format || '12h')
-      setMobileQuickEntry(currentUser.mobile_quick_entry_enabled ?? true)
+      setMobileStartPage(currentUser.mobile_quick_entry_enabled ? 'quick-entry' : 'dashboard')
       setSelectedLanguage(currentUser.language || 'en')
       setSelectedCurrency(currentUser.currency_code || 'USD')
       setDefaultPaymentMethod(currentUser.default_payment_method ?? '')
@@ -393,19 +395,19 @@ export default function SettingsSystemTab() {
     }
   }
 
-  const handleMobileQuickEntryChange = async (enabled: boolean) => {
-    setMobileQuickEntrySaving(true)
-    setMobileQuickEntry(enabled)
+  const handleMobileStartPageChange = async (startPage: MobileStartPage) => {
+    setMobileStartPageSaving(true)
+    setMobileStartPage(startPage)
 
     try {
-      await api.put('/auth/me', { mobile_quick_entry_enabled: enabled })
+      await api.put('/auth/me', { mobile_quick_entry_enabled: startPage === 'quick-entry' })
       await refreshUser()
       toast.success(t('preferences.mobileSaved'))
     } catch {
       toast.error(t('preferences.mobileError'))
-      setMobileQuickEntry(currentUser?.mobile_quick_entry_enabled ?? true)
+      setMobileStartPage(currentUser?.mobile_quick_entry_enabled ? 'quick-entry' : 'dashboard')
     } finally {
-      setMobileQuickEntrySaving(false)
+      setMobileStartPageSaving(false)
     }
   }
 
@@ -801,14 +803,22 @@ export default function SettingsSystemTab() {
           </div>
 
           <div>
-            <Toggle
-              label={t('mobile.quickEntry')}
-              checked={mobileQuickEntry}
-              onChange={handleMobileQuickEntryChange}
-              disabled={mobileQuickEntrySaving}
+            <label htmlFor="mobile_start_page" className="mb-2 block text-sm font-medium text-garage-text">
+              {t('mobile.startPage')}
+            </label>
+            <Select
+              id="mobile_start_page"
+              value={mobileStartPage}
+              onChange={(event) => void handleMobileStartPageChange(event.target.value as MobileStartPage)}
+              disabled={mobileStartPageSaving}
+              className="md:w-96"
+              options={[
+                { value: 'dashboard', label: t('mobile.dashboard') },
+                { value: 'quick-entry', label: t('mobile.quickEntry') },
+              ]}
             />
             <p className="mt-1 text-sm text-garage-text-muted">
-              {t('mobile.quickEntryDescription')}
+              {t('mobile.startPageDescription')}
             </p>
           </div>
         </div>

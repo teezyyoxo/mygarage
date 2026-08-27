@@ -50,8 +50,10 @@
   "mobile": {
     "title": "Mobile Nutzung",
     "description": "Passe das Verhalten der App auf Mobilgeräten an.",
-    "quickEntry": "Schnelleingabe auf Mobilgeräten",
-    "quickEntryDescription": "Nach der Anmeldung auf einem Mobilgerät direkt zur Schnelleingabe statt zum Dashboard weiterleiten"
+    "startPage": "Mobile Startseite",
+    "startPageDescription": "Wähle die Seite, die MyGarage nach der Anmeldung auf Mobilgeräten zuerst öffnet.",
+    "dashboard": "Dashboard",
+    "quickEntry": "Schnelleingabe"
   },
   "family": {
     "title": "Familienverwaltung",

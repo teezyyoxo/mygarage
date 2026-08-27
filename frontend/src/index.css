@@ -173,10 +173,19 @@
      `nav:flex` / `md:max-nav:inline-flex` emit NO css, silently. */
   --breakpoint-nav: 56.25rem;
 
-  --spacing-safe-top:    env(safe-area-inset-top);
-  --spacing-safe-bottom: env(safe-area-inset-bottom);
-  --spacing-safe-left:   env(safe-area-inset-left);
-  --spacing-safe-right:  env(safe-area-inset-right);
+  /* iOS standalone mode exposes the notch, Dynamic Island and home-indicator
+   * gutters through env(). Route them through overridable app variables so the
+   * real insets are consumed everywhere while browser tests can inject nonzero
+   * values on hardware without a notch. */
+  --app-safe-area-top:    env(safe-area-inset-top, 0px);
+  --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --app-safe-area-left:   env(safe-area-inset-left, 0px);
+  --app-safe-area-right:  env(safe-area-inset-right, 0px);
+
+  --spacing-safe-top:    var(--app-safe-area-top);
+  --spacing-safe-bottom: var(--app-safe-area-bottom);
+  --spacing-safe-left:   var(--app-safe-area-left);
+  --spacing-safe-right:  var(--app-safe-area-right);
 
   --animate-slide-up: slideUp 0.3s ease-out;
 }

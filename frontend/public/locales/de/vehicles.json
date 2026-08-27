@@ -752,6 +752,8 @@
     "serviceVisitDesc": "Wartung oder Reparatur erfassen",
     "title": "Schnelleingabe",
     "vehicle": "Fahrzeug",
+    "viewVehicle": "{{vehicle}} öffnen",
+    "viewVehicleDetails": "Fahrzeugdetails anzeigen",
     "whatLogging": "Was möchtest du erfassen?"
   },
   "recallList": {

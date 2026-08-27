@@ -54,10 +54,12 @@ async def list_quick_entry_vehicles(
     Excludes archived vehicles in both cases.
 
     When auth is disabled (``auth_mode='none'`` — ``require_auth`` returns
-    ``None``), there is no user to scope to, so all non-archived vehicles are
-    returned, matching ``VehicleService.list_vehicles``.
+    ``None``), or the current user is an administrator, all non-archived
+    vehicles are returned, matching ``VehicleService.list_vehicles`` and the
+    dashboard. Administrators can write every vehicle, so these are all valid
+    Quick Entry targets.
     """
-    if current_user is None:
+    if current_user is None or current_user.is_admin:
         all_result = await db.execute(select(Vehicle).where(Vehicle.archived_at.is_(None)))
         all_vehicles = list(all_result.scalars().all())
     else:

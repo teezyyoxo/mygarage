@@ -58,4 +58,12 @@ describe('Layout supplies nav', () => {
     const active = links.find((el) => el.className.includes('bg-(--accent-soft)'))
     expect(active).toHaveClass('bg-(--accent-soft)')
   })
+
+  it('reserves the tab bar plus the device bottom safe area', () => {
+    const { container } = setup()
+    expect(container.firstElementChild).toHaveClass(
+      'min-h-dvh',
+      'pb-[calc(4rem+var(--app-safe-area-bottom))]',
+    )
+  })
 })

@@ -881,6 +881,8 @@
     "serviceVisitDesc": "Log maintenance or repair",
     "title": "Quick Entry",
     "vehicle": "Vehicle",
+    "viewVehicle": "Open {{vehicle}}",
+    "viewVehicleDetails": "View vehicle details",
     "whatLogging": "What are you logging?"
   },
   "recallList": {

@@ -101,12 +101,14 @@ export async function seedAndAuthenticate(
     `Seed vehicle failed: ${vehicleResp.status()} ${await vehicleResp.text()}`,
   ).toBeTruthy()
 
-  // Step 4b: Ensure the user language is English (i18n specs may change it).
+  // Step 4b: Reset user-scoped preferences that affect navigation or labels.
+  // A warm local E2E database may retain Quick Entry from an earlier run,
+  // which would redirect Dashboard-oriented tests before their first action.
   const langResp = await request.put(`${apiBase}/auth/me`, {
-    data: { language: 'en' },
+    data: { language: 'en', mobile_quick_entry_enabled: false },
     headers: authHeaders,
   })
-  expect(langResp.ok(), `Set language failed: ${langResp.status()}`).toBeTruthy()
+  expect(langResp.ok(), `Reset user preferences failed: ${langResp.status()}`).toBeTruthy()
 
   // Step 4c (subpath only): seed a main photo + a fuel fill-up so the prefixed
   // specs have a real `<img>` and Recharts chart to assert against.

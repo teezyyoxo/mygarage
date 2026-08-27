@@ -484,6 +484,8 @@
     "serviceVisitDesc": "Przycisk wizyty serwisowej",
     "title": "Szybki wpis",
     "vehicle": "Pojazd",
+    "viewVehicle": "Otwórz {{vehicle}}",
+    "viewVehicleDetails": "Wyświetl szczegóły pojazdu",
     "whatLogging": "Co rejestrujemy?"
   },
   "recallList": {

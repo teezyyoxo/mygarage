@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import FuelRecordForm from '../components/FuelRecordForm'
 import ServiceVisitForm from '../components/ServiceVisitForm'
 import OdometerRecordForm from '../components/OdometerRecordForm'
+import MobileTabBar from '../components/shell/MobileTabBar'
 import { Select } from '../components/ui'
 import { useQuickEntryVehicles } from '../hooks/queries/useQuickEntryVehicles'
 import { vehicleLabel } from '../utils/vehicleLabel'
@@ -53,20 +54,22 @@ export default function QuickEntry() {
   }
 
   return (
-    <div className="min-h-screen bg-garage-bg flex flex-col">
+    <div className="min-h-dvh bg-garage-bg flex flex-col pb-[calc(4rem+var(--app-safe-area-bottom))] md:pb-0">
       {/* Minimal header */}
-      <header className="bg-garage-surface border-b border-garage-border px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Car className="w-5 h-5 text-primary" />
-          <span className="font-semibold text-garage-text">{t('common:appName')}</span>
+      <header className="sticky top-0 z-nav border-b border-garage-border bg-garage-surface pt-safe-top pl-safe-left pr-safe-right">
+        <div className="flex min-h-[52px] items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Car className="w-5 h-5 text-primary" />
+            <span className="font-semibold text-garage-text">{t('common:appName')}</span>
+          </div>
+          <Link
+            to="/"
+            className="flex min-h-11 items-center gap-1 px-2 text-sm text-primary hover:underline"
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            {t('common:dashboard')}
+          </Link>
         </div>
-        <Link
-          to="/"
-          className="flex items-center gap-1 text-sm text-primary hover:underline"
-        >
-          <LayoutDashboard className="w-4 h-4" />
-          {t('common:dashboard')}
-        </Link>
       </header>
 
       <main className="flex-1 px-4 py-6 max-w-lg mx-auto w-full">
@@ -106,8 +109,12 @@ export default function QuickEntry() {
                 {t('quickEntry.vehicle')}
               </label>
               {vehicles.length === 1 ? (
-                /* Single vehicle — show as a card, not a dropdown */
-                <div className="flex items-center gap-3 p-3 bg-garage-surface rounded-lg border border-garage-border">
+                /* Single vehicle — selected automatically; the whole card opens it. */
+                <Link
+                  to={`/vehicles/${vehicles[0].vin}`}
+                  aria-label={t('quickEntry.viewVehicle', { vehicle: vehicleLabel(vehicles[0]) })}
+                  className="ui-focus-ring flex min-h-20 items-center gap-3 rounded-lg border border-garage-border bg-garage-surface p-3 transition-colors hover:border-primary"
+                >
                   {selectedVehicle?.thumbnail_url ? (
                     <img
                       src={withBase(selectedVehicle.thumbnail_url)}
@@ -119,8 +126,12 @@ export default function QuickEntry() {
                       <Car className="w-6 h-6 text-garage-text-muted" />
                     </div>
                   )}
-                  <span className="font-medium text-garage-text">{vehicleLabel(vehicles[0])}</span>
-                </div>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-garage-text">{vehicleLabel(vehicles[0])}</span>
+                    <span className="mt-1 block text-xs text-garage-text-muted">{t('quickEntry.viewVehicleDetails')}</span>
+                  </span>
+                  <ChevronRight aria-hidden="true" className="h-5 w-5 flex-shrink-0 text-garage-text-muted" />
+                </Link>
               ) : (
                 <Select
                   value={selectedVin}
@@ -215,6 +226,8 @@ export default function QuickEntry() {
           onSuccess={() => handleSuccess('odometer')}
         />
       )}
+
+      <MobileTabBar />
     </div>
   )
 }

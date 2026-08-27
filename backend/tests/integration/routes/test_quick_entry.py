@@ -154,22 +154,51 @@ class TestUpdateCurrentUserPreferences:
         """Test that mobile_quick_entry_enabled can be toggled."""
         response = await client.put(
             "/api/auth/me",
-            json={"mobile_quick_entry_enabled": False},
+            json={"mobile_quick_entry_enabled": True},
             headers=auth_headers,
         )
         assert response.status_code == 200
-        assert response.json()["mobile_quick_entry_enabled"] is False
+        assert response.json()["mobile_quick_entry_enabled"] is True
 
         user = await db_session.get(User, test_user["id"])
         await db_session.refresh(user)
-        assert user.mobile_quick_entry_enabled is False
+        assert user.mobile_quick_entry_enabled is True
 
         # Restore
         await client.put(
             "/api/auth/me",
-            json={"mobile_quick_entry_enabled": True},
+            json={"mobile_quick_entry_enabled": False},
             headers=auth_headers,
         )
+
+    async def test_new_user_mobile_start_page_defaults_to_dashboard(
+        self, client: AsyncClient, db_session
+    ):
+        """A newly inserted account defaults to Dashboard without fixture mutation."""
+        from app.services.auth import create_access_token
+
+        user = User(
+            username="mobile_default_user",
+            email="mobile_default_user@example.com",
+            hashed_password="x",
+            is_active=True,
+            is_admin=False,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+        assert user.mobile_quick_entry_enabled is False
+
+        token = create_access_token(data={"sub": str(user.id), "username": user.username})
+        response = await client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        assert response.json()["mobile_quick_entry_enabled"] is False
+
+        await db_session.delete(user)
+        await db_session.commit()
 
     async def test_cannot_self_escalate_is_admin(self, client: AsyncClient, auth_headers):
         """Test that users cannot send is_admin via self-update (rejected by schema)."""
@@ -257,7 +286,7 @@ class TestQuickEntryVehicles:
         await db_session.commit()
 
     async def test_includes_write_shared_vehicles(
-        self, client: AsyncClient, auth_headers, test_user, db_session
+        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session
     ):
         """Test that write-shared vehicles are included."""
         # Create a second user and vehicle
@@ -284,7 +313,7 @@ class TestQuickEntryVehicles:
 
         share = VehicleShare(
             vehicle_vin="SHAREDWRITEVIN001",
-            user_id=test_user["id"],
+            user_id=non_admin_user["id"],
             permission="write",
             shared_by=other_user.id,
         )
@@ -293,7 +322,7 @@ class TestQuickEntryVehicles:
 
         response = await client.get(
             "/api/quick-entry/vehicles",
-            headers=auth_headers,
+            headers=non_admin_headers,
         )
         assert response.status_code == 200
         vins = [v["vin"] for v in response.json()["vehicles"]]
@@ -306,7 +335,7 @@ class TestQuickEntryVehicles:
         await db_session.commit()
 
     async def test_excludes_read_only_shared_vehicles(
-        self, client: AsyncClient, auth_headers, test_user, db_session
+        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session
     ):
         """Test that read-only shared vehicles are not returned."""
         other_user = User(
@@ -332,7 +361,7 @@ class TestQuickEntryVehicles:
 
         share = VehicleShare(
             vehicle_vin="SHAREDREADVIN0001",
-            user_id=test_user["id"],
+            user_id=non_admin_user["id"],
             permission="read",
             shared_by=other_user.id,
         )
@@ -341,7 +370,7 @@ class TestQuickEntryVehicles:
 
         response = await client.get(
             "/api/quick-entry/vehicles",
-            headers=auth_headers,
+            headers=non_admin_headers,
         )
         assert response.status_code == 200
         vins = [v["vin"] for v in response.json()["vehicles"]]
@@ -350,6 +379,40 @@ class TestQuickEntryVehicles:
         # Cleanup
         await db_session.delete(share)
         await db_session.delete(readonly_vehicle)
+        await db_session.delete(other_user)
+        await db_session.commit()
+
+    async def test_admin_includes_unowned_unshared_vehicle(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """Quick Entry matches Dashboard: administrators can act on every active vehicle."""
+        other_user = User(
+            username="otheruser_admin_qe",
+            email="otheruser_admin_qe@example.com",
+            hashed_password="x",
+            is_active=True,
+        )
+        db_session.add(other_user)
+        await db_session.flush()
+
+        vehicle = Vehicle(
+            vin="ADMINVISIBLEVIN01",
+            user_id=other_user.id,
+            nickname="Admin-visible Vehicle",
+            vehicle_type="Car",
+            year=2019,
+            make="BMW",
+            model="530i",
+        )
+        db_session.add(vehicle)
+        await db_session.commit()
+
+        response = await client.get("/api/quick-entry/vehicles", headers=auth_headers)
+        assert response.status_code == 200
+        vins = [item["vin"] for item in response.json()["vehicles"]]
+        assert vehicle.vin in vins
+
+        await db_session.delete(vehicle)
         await db_session.delete(other_user)
         await db_session.commit()
 

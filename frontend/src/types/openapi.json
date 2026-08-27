@@ -16339,7 +16339,7 @@
             "title": "Last Login"
           },
           "mobile_quick_entry_enabled": {
-            "default": true,
+            "default": false,
             "title": "Mobile Quick Entry Enabled",
             "type": "boolean"
           },
@@ -28111,7 +28111,7 @@
     },
     "/api/quick-entry/vehicles": {
       "get": {
-        "description": "Return writable, non-archived vehicles for the Quick Entry page.\n\nReturns vehicles the current user:\n- Owns (user_id matches), OR\n- Has write-share access to\n\nExcludes archived vehicles in both cases.\n\nWhen auth is disabled (``auth_mode='none'`` \u2014 ``require_auth`` returns\n``None``), there is no user to scope to, so all non-archived vehicles are\nreturned, matching ``VehicleService.list_vehicles``.",
+        "description": "Return writable, non-archived vehicles for the Quick Entry page.\n\nReturns vehicles the current user:\n- Owns (user_id matches), OR\n- Has write-share access to\n\nExcludes archived vehicles in both cases.\n\nWhen auth is disabled (``auth_mode='none'`` \u2014 ``require_auth`` returns\n``None``), or the current user is an administrator, all non-archived\nvehicles are returned, matching ``VehicleService.list_vehicles`` and the\ndashboard. Administrators can write every vehicle, so these are all valid\nQuick Entry targets.",
         "operationId": "list_quick_entry_vehicles_api_quick_entry_vehicles_get",
         "responses": {
           "200": {

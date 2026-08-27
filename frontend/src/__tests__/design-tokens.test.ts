@@ -641,6 +641,22 @@ describe('design tokens', () => {
     expect(html).not.toContain('content="#3b82f6"')
   })
 
+  it('reserves the iOS status bar instead of drawing app controls behind it', () => {
+    const html = readFileSync(resolve(ROOT, 'index.html'), 'utf8')
+    expect(html).toContain('name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"')
+    expect(html).toContain('name="apple-mobile-web-app-status-bar-style" content="black"')
+    expect(html).not.toContain('content="black-translucent"')
+  })
+
+  it('routes all four device safe-area insets through overridable app tokens', () => {
+    const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
+    for (const edge of ['top', 'bottom', 'left', 'right']) {
+      expect(css).toContain(`--app-safe-area-${edge}:`)
+      expect(css).toContain(`--spacing-safe-${edge}:`)
+      expect(css).toContain(`var(--app-safe-area-${edge})`)
+    }
+  })
+
   it('repalettes the offline page off the old GitHub-dark colours', () => {
     const offline = readFileSync(resolve(ROOT, 'public/offline.html'), 'utf8')
     for (const stale of ['#0d1117', '#161b22', '#30363d', '#f5f6f8', '#c9d1d9']) {

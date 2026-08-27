@@ -40,4 +40,21 @@ describe('MobileTabBar', () => {
     at('/supplies')
     expect(screen.getByRole('link', { name: 'nav:home' })).not.toHaveClass('bg-(--accent-soft)')
   })
+
+  it('consumes the iPhone bottom and landscape safe areas', () => {
+    at('/')
+    const nav = screen.getByRole('navigation')
+    expect(nav).toHaveClass('pb-safe-bottom', 'pl-safe-left', 'pr-safe-right')
+  })
+
+  it('uses seven shrinkable columns instead of overflowing fixed-width tabs', () => {
+    at('/')
+    const nav = screen.getByRole('navigation')
+    expect(nav.firstElementChild).toHaveClass('grid', 'grid-cols-7')
+    expect(nav.firstElementChild).not.toHaveClass('gap-0.5', 'px-1')
+    for (const link of screen.getAllByRole('link')) {
+      expect(link).toHaveClass('min-w-0')
+      expect(link).not.toHaveClass('min-w-[56px]')
+    }
+  })
 })

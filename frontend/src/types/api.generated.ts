@@ -2752,8 +2752,10 @@ export interface paths {
          *     Excludes archived vehicles in both cases.
          *
          *     When auth is disabled (``auth_mode='none'`` — ``require_auth`` returns
-         *     ``None``), there is no user to scope to, so all non-archived vehicles are
-         *     returned, matching ``VehicleService.list_vehicles``.
+         *     ``None``), or the current user is an administrator, all non-archived
+         *     vehicles are returned, matching ``VehicleService.list_vehicles`` and the
+         *     dashboard. Administrators can write every vehicle, so these are all valid
+         *     Quick Entry targets.
          */
         get: operations["list_quick_entry_vehicles_api_quick_entry_vehicles_get"];
         put?: never;
@@ -13422,7 +13424,7 @@ export interface components {
             last_login: string | null;
             /**
              * Mobile Quick Entry Enabled
-             * @default true
+             * @default false
              */
             mobile_quick_entry_enabled: boolean;
             /** Relationship */

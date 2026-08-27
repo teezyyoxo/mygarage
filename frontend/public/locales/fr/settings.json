@@ -51,8 +51,10 @@
   "mobile": {
     "title": "Expérience mobile",
     "description": "Personnalisez le comportement de l'application sur les appareils mobiles.",
-    "quickEntry": "Saisie rapide sur mobile",
-    "quickEntryDescription": "Après connexion sur un appareil mobile, aller directement à la saisie rapide au lieu du tableau de bord"
+    "startPage": "Page de démarrage mobile",
+    "startPageDescription": "Choisissez la première page ouverte par MyGarage sur mobile après votre connexion.",
+    "dashboard": "Tableau de bord",
+    "quickEntry": "Saisie rapide"
   },
   "family": {
     "title": "Gestion de la famille",

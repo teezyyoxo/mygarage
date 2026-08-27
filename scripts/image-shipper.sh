@@ -58,13 +58,13 @@ Information:
   -h, --help                Show this help
 
 Examples:
-  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.6
+  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.7
 
   scripts/image-shipper.sh . --image vehicle-hub_mygarage:latest \
     --host deskmini --user montel --compose-service mygarage \
     --compose-restart vehicle-hub-gateway
 
-  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.6 \
+  scripts/image-shipper.sh --build-context . --tag mygarage:3.1.7 \
     --build-option=--build-arg --build-option=BUILD_COMMIT=abc1234
 
   scripts/image-shipper.sh --image myapp:latest --host server.example.test \

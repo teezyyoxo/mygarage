@@ -101,7 +101,7 @@ Vehicle Hub files or the MyGarage submodule.
 
 ## Vehicle Hub and CarChief Command integration
 
-Current MyGarage fork version: **3.1.6**
+Current MyGarage fork version: **3.1.7**
 
 This Vehicle Hub-maintained fork adds an optional, reviewed connection between
 MyGarage service history and the BMW-specific

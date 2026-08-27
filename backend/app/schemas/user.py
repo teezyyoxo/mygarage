@@ -291,7 +291,7 @@ class UserResponse(UserBase):
     unit_preference: str = "imperial"
     show_both_units: bool = False
     time_format: str = "12h"
-    mobile_quick_entry_enabled: bool = True
+    mobile_quick_entry_enabled: bool = False
     # i18n preferences
     language: str = "en"
     currency_code: str = "USD"

@@ -66,8 +66,10 @@
   "mobile": {
     "title": "Mobile Experience",
     "description": "Customize how the app behaves on mobile devices.",
-    "quickEntry": "Quick Entry on Mobile",
-    "quickEntryDescription": "After signing in on a mobile device, go directly to Quick Entry instead of the dashboard"
+    "startPage": "Mobile start page",
+    "startPageDescription": "Choose the page MyGarage opens first on mobile after you sign in.",
+    "dashboard": "Dashboard",
+    "quickEntry": "Quick Entry"
   },
   "family": {
     "title": "Family Management",

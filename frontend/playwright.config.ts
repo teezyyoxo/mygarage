@@ -45,8 +45,23 @@ export default defineConfig({
         storageState: './e2e/.auth/user.json',
       },
       dependencies: ['setup'],
-      // Subpath specs run only under the `subpath` project (their own baseURL).
-      testIgnore: /subpath\.spec\.ts/,
+      // Subpath + phone-specific specs run only under their dedicated projects.
+      testIgnore: [/subpath\.spec\.ts/, /mobile-shell\.spec\.ts/],
+    },
+
+    // ---- Focused phone project: real touch/mobile metrics without duplicating
+    // the complete desktop suite. Chromium is intentional so the shared CI's
+    // existing browser install remains sufficient; safe-area values are
+    // injected by the spec because desktop hosts expose env(...)=0. ---------
+    {
+      name: 'mobile-chromium',
+      testMatch: /mobile-shell\.spec\.ts/,
+      use: {
+        ...devices['iPhone 13'],
+        browserName: 'chromium',
+        storageState: './e2e/.auth/user.json',
+      },
+      dependencies: ['setup'],
     },
 
     // ---- Subpath project (#107): production dist behind /mygarage --------

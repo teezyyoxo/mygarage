@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
+import pkg from './package.json' with { type: 'json' }
 
 // TEMPORARY FIX: Explicit Vitest config for Bun compatibility
 // TODO: Remove this file when Bun's Vitest integration properly loads jsdom from vite.config.ts
@@ -10,6 +11,10 @@ import path from 'path'
 // Expected resolution: Bun 1.4+ or Vitest update
 
 export default defineConfig({
+  define: {
+    APP_VERSION: JSON.stringify(pkg.version),
+    BUILD_COMMIT: JSON.stringify(process.env.BUILD_COMMIT || 'test'),
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

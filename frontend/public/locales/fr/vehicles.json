@@ -779,6 +779,8 @@
     "serviceVisitDesc": "Enregistrer une maintenance ou une réparation",
     "title": "Saisie rapide",
     "vehicle": "Véhicule",
+    "viewVehicle": "Ouvrir {{vehicle}}",
+    "viewVehicleDetails": "Afficher les détails du véhicule",
     "whatLogging": "Que souhaitez-vous enregistrer ?"
   },
   "recallList": {

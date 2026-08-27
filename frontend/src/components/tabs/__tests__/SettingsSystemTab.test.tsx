@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 
+const authMocks = vi.hoisted(() => ({ refreshUser: vi.fn() }))
+
 vi.mock('@/services/api', () => ({
   default: {
     get: vi.fn(),
@@ -29,8 +31,13 @@ vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     isAuthenticated: true,
     isAdmin: true,
-    user: { unit_preference: 'imperial', language: 'en', currency_code: 'USD' },
-    refreshUser: vi.fn(),
+    user: {
+      unit_preference: 'imperial',
+      language: 'en',
+      currency_code: 'USD',
+      mobile_quick_entry_enabled: false,
+    },
+    refreshUser: authMocks.refreshUser,
   }),
 }))
 
@@ -161,5 +168,20 @@ describe('SettingsSystemTab — OIDC config is only written when OIDC changed', 
     const putOrder = mockedApi.put.mock.invocationCallOrder[0]
     const postOrder = mockedApi.post.mock.invocationCallOrder[0]
     expect(putOrder).toBeLessThan(postOrder)
+  })
+
+  it('saves the selected per-user mobile start page', async () => {
+    renderTab()
+    const startPage = await screen.findByLabelText('mobile.startPage')
+    expect(startPage).toHaveValue('dashboard')
+
+    fireEvent.change(startPage, { target: { value: 'quick-entry' } })
+
+    await waitFor(() =>
+      expect(mockedApi.put).toHaveBeenCalledWith('/auth/me', {
+        mobile_quick_entry_enabled: true,
+      }),
+    )
+    expect(authMocks.refreshUser).toHaveBeenCalled()
   })
 })

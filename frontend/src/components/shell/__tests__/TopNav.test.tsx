@@ -31,6 +31,11 @@ describe('TopNav', () => {
     expect(nav).toHaveClass('hidden', 'nav:flex')
   })
 
+  it('keeps header controls below the iPhone status area', () => {
+    setup()
+    expect(screen.getByRole('banner')).toHaveClass('pt-safe-top', 'pl-safe-left', 'pr-safe-right')
+  })
+
   it('renders the hamburger only in the tablet band', () => {
     setup()
     // jsdom applies no CSS, so this only pins the class string — it cannot verify
