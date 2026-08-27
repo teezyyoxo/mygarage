@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A single auto-selected vehicle on Quick Entry is now a tappable link to its
   details. Administrator Quick Entry lists every active vehicle, matching the
   Dashboard and the administrator's write permissions.
+- Image shipment now follows the exact reference reported by the destination
+  engine after loading an archive. Podman's `localhost/` alias can no longer
+  cause a stale unprefixed image to be recreated and falsely verified.
 
 ### Changed
 

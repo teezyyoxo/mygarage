@@ -5,7 +5,7 @@
 
 set -Eeuo pipefail
 
-SCRIPT_VERSION="1.2.1"
+SCRIPT_VERSION="1.2.2"
 
 if [[ -t 1 ]]; then
   C_RESET=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
@@ -83,6 +83,12 @@ EOF
 changelog() {
   cat <<'EOF'
 Image Shipper changelog
+
+1.2.2 — 2026-08-27
+  • Remote loads now use the exact image reference or ID reported by
+    Docker/Podman and normalize tagged images before Compose recreation. This
+    prevents a stale unprefixed tag from winning when Podman archives load as
+    localhost/IMAGE on a Docker destination.
 
 1.2.1 — 2026-08-25
   • MyGarage deployments now query the live public /api/version endpoint from
@@ -696,11 +702,39 @@ ok "Transferred archive to $remote_archive"
 
 step 'Load image on destination'
 remote_archive_q=$(shell_quote "$remote_archive")
-"${ssh_cmd[@]}" "$target" "gzip -dc $remote_archive_q | $remote_engine_q load"
-remote_image_id=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{.Id}}' $(shell_quote "$image")")
-image_build_commit=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' $(shell_quote "$image")" 2>/dev/null || true)
+remote_load_output=''
+if ! remote_load_output=$("${ssh_cmd[@]}" "$target" "gzip -dc $remote_archive_q | $remote_engine_q load" 2>&1); then
+  printf '%s\n' "$remote_load_output" >&2
+  die "Remote engine failed to load $remote_archive."
+fi
+printf '%s\n' "$remote_load_output"
+remote_loaded_image=$(printf '%s\n' "$remote_load_output" |
+  sed -nE 's/^[[:space:]]*Loaded image( ID)?:[[:space:]]*([^[:space:]]+)[[:space:]]*$/\2/p' |
+  tail -n 1)
+[[ -n "$remote_loaded_image" ]] || \
+  die 'Remote engine did not report the loaded image reference; refusing to select a possibly stale tag.'
+remote_loaded_image_q=$(shell_quote "$remote_loaded_image")
+remote_image_id=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{.Id}}' $remote_loaded_image_q")
+remote_runtime_image=$remote_loaded_image
+
+case "$image" in
+  sha256:*|*@sha256:*) ;;
+  *)
+    if [[ "$remote_loaded_image" != "$image" ]]; then
+      "${ssh_cmd[@]}" "$target" "$remote_engine_q tag $remote_loaded_image_q $(shell_quote "$image")"
+      normalized_image_id=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{.Id}}' $(shell_quote "$image")")
+      [[ "$normalized_image_id" == "$remote_image_id" ]] || \
+        die "Normalized tag $image does not resolve to the image loaded as $remote_loaded_image."
+      ok "Normalized loaded image tag $remote_loaded_image as $image"
+    fi
+    remote_runtime_image=$image
+    ;;
+esac
+remote_runtime_image_q=$(shell_quote "$remote_runtime_image")
+
+image_build_commit=$("${ssh_cmd[@]}" "$target" "$remote_engine_q image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' $remote_runtime_image_q" 2>/dev/null || true)
 [[ "$image_build_commit" == '<no value>' ]] && image_build_commit=''
-ok "Loaded $image"
+ok "Loaded $image from exact remote reference $remote_loaded_image"
 field 'Local image ID' "$local_image_id"
 field 'Remote image ID' "$remote_image_id"
 
@@ -718,9 +752,9 @@ if [[ "$deploy_mode" == compose ]]; then
   "${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose config --services | grep -Fx -- $compose_service_q >/dev/null" || die "Compose service '$compose_service' was not found in $compose_dir."
 
   compose_image=$("${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose config --images $compose_service_q | head -n 1")
-  if [[ -n "$compose_image" && "$compose_image" != "$image" ]]; then
-    "${ssh_cmd[@]}" "$target" "$remote_engine_q tag $(shell_quote "$image") $(shell_quote "$compose_image")"
-    ok "Aligned Compose image tag $compose_image with $image"
+  if [[ -n "$compose_image" && "$compose_image" != "$remote_runtime_image" ]]; then
+    "${ssh_cmd[@]}" "$target" "$remote_engine_q tag $remote_runtime_image_q $(shell_quote "$compose_image")"
+    ok "Aligned Compose image tag $compose_image with $remote_runtime_image"
   fi
 
   "${ssh_cmd[@]}" "$target" "cd $compose_dir_q && $remote_compose up -d --no-build --no-deps --force-recreate $compose_service_q"
@@ -757,7 +791,7 @@ elif [[ "$deploy_mode" == standalone ]]; then
   if ((${#run_options[@]})); then
     for option in "${run_options[@]}"; do remote_run+=" $(shell_quote "$option")"; done
   fi
-  remote_run+=" $(shell_quote "$image")"
+  remote_run+=" $remote_runtime_image_q"
   "${ssh_cmd[@]}" "$target" "$remote_run"
   ok "Started $container_name"
 
